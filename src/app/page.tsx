@@ -1,69 +1,37 @@
-import Image from "next/image";
-import styles from "./page.module.css";
+import { Index2Home } from "@/components/index2-home";
+import { getBanners, getBlogPosts, getCatalog } from "@/lib/catalog-api";
 
-export default function Home() {
+export const dynamic = "force-dynamic";
+
+export default async function HomePage() {
+  const [catalog, banners, journal] = await Promise.all([
+    getCatalog(),
+    getBanners(),
+    getBlogPosts(),
+  ]);
+  const categoryMap = new Map<string, { slug: string; name: string; image: string; count: number }>();
+
+  for (const product of catalog) {
+    if (!product.category || !product.categoryImage) continue;
+    const current = categoryMap.get(product.category);
+    categoryMap.set(product.category, current
+      ? { ...current, count: current.count + 1 }
+      : {
+          slug: product.category,
+          name: product.categoryName || product.category,
+          image: product.categoryImage,
+          count: 1,
+        });
+  }
+
   return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className={styles.intro}>
-          <h1>
-            To get started, edit the{" "}
-            <code className={styles.code}>page.tsx</code> file.
-          </h1>
-          <p>
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className={styles.secondary}
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <Index2Home
+      banners={banners}
+      categories={Array.from(categoryMap.values())}
+      featured={catalog.filter((product) => product.featured).slice(0, 4)}
+      newArrivals={catalog.filter((product) => product.newArrival).slice(0, 6)}
+      trending={catalog.filter((product) => product.bestSeller).slice(0, 3)}
+      journal={journal.slice(0, 2)}
+    />
   );
 }
