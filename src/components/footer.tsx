@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { getCatalog } from "@/lib/catalog-api";
 import { siteConfig } from "@/lib/site";
 
@@ -19,7 +20,9 @@ export async function Footer() {
     <footer className="siteFooter">
       <div className="container footerGrid">
         <div>
-          <div className="footerBrand">{siteConfig.name}</div>
+          <div className="footerBrand">
+            <Image src="/assets/img/sonaro-logo-white.png" alt={siteConfig.name} width={240} height={135} style={{ height: '60px', width: 'auto' }} />
+          </div>
           <p>
             Jewellery made with transparent pricing, thoughtful design and
             quality you can trust.

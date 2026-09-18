@@ -816,7 +816,7 @@ img {
 }
 
 .pageIntro {
-  padding-block: 86px 58px;
+  padding-block: 160px 58px;
   text-align: center;
 }
 
@@ -1723,7 +1723,7 @@ img {
   min-height: 620px;
   display: flex;
   align-items: center;
-  padding: 80px 9vw;
+  padding: 180px 9vw 80px;
   color: var(--white);
 }
 
@@ -2378,7 +2378,7 @@ img {
   }
 
   .pageIntro {
-    padding-block: 64px 40px;
+    padding-block: 140px 40px;
   }
 
   .pageIntro h1 {

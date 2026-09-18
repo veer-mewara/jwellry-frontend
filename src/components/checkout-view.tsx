@@ -256,7 +256,7 @@ export function CheckoutView() {
         key: result.payment.key_id,
         amount: result.payment.amount,
         currency: result.payment.currency || "INR",
-        name: process.env.NEXT_PUBLIC_BRAND_NAME || "Jewlfy",
+        name: process.env.NEXT_PUBLIC_BRAND_NAME || "Sonaro",
         description: `Order ${result.data.order_number}`,
         order_id: result.payment.razorpay_order_id,
         prefill: { email: payload.email, contact: payload.phone },
@@ -285,7 +285,7 @@ export function CheckoutView() {
     return (
       <div className="emptyState cartEmpty">
         <span className="eyebrow">Order received</span>
-        <h2>Thank you for choosing Jewlfy.</h2>
+        <h2>Thank you for choosing Sonaro.</h2>
         <p>
           Your order <strong>{completedOrder.number}</strong> is confirmed. {completedOrder.payment}.
           We’ll send updates to your email and mobile number.

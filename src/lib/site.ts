@@ -1,5 +1,5 @@
 export const siteConfig = {
-  name: process.env.NEXT_PUBLIC_BRAND_NAME || "Jewlfy",
+  name: process.env.NEXT_PUBLIC_BRAND_NAME || "Sonaro",
   description:
     "Fine jewellery crafted with certified metals, transparent pricing and timeless design.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useState } from "react";
 import { useStore } from "@/components/store-provider";
 import { siteConfig } from "@/lib/site";
@@ -36,8 +37,7 @@ export function Header() {
             <span />
           </button>
           <Link href="/" className="brand" aria-label={`${siteConfig.name} home`}>
-            <span className="brandMark">J</span>
-            <span>{siteConfig.name}</span>
+            <Image src="/assets/img/sonaro-logo.png" alt={siteConfig.name} width={240} height={135} style={{ height: '60px', width: 'auto', maxHeight: '100%' }} priority />
           </Link>
           <nav className={open ? "mainNav mainNavOpen" : "mainNav"}>
             {navItems.map((item) => (

@@ -11,9 +11,9 @@ import {
 import type { CartLine, Product } from "@/types/commerce";
 import { getProductPrice } from "@/lib/pricing";
 
-const CART_KEY = "jewlfy_cart_v1";
-const WISHLIST_KEY = "jewlfy_wishlist_v1";
-const COUPON_KEY = "jewlfy_coupon_v1";
+const CART_KEY = "sonaro_cart_v1";
+const WISHLIST_KEY = "sonaro_wishlist_v1";
+const COUPON_KEY = "sonaro_coupon_v1";
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
 
 interface StoreContextValue {

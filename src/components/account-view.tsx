@@ -188,23 +188,188 @@ export function AccountView() {
   }
 
   return (
-    <div className="accountGrid">
-      <section className="accountLogin">
-        <h2>{mode === "login" ? "Sign in" : "Create account"}</h2>
-        <form onSubmit={authenticate}>
-          {mode === "register" && <label>Your name<input required name="name" autoComplete="name" /></label>}
-          <label>Email address<input required name="email" type="email" autoComplete="email" /></label>
-          <label>Password<input required minLength={8} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} /></label>
-          {mode === "register" && <label>Confirm password<input required minLength={8} name="password_confirmation" type="password" autoComplete="new-password" /></label>}
-          <button disabled={loading} type="submit" className="button buttonDark">{loading ? "Please wait…" : mode === "login" ? "Sign in" : "Create account"}</button>
-        </form>
-        {notice && <p className="integrationNotice" role="alert">{notice}</p>}
-      </section>
-      <aside className="accountBenefits">
-        <h2>Your account keeps everything together.</h2>
-        <div><b>Orders</b><span>View payment and fulfilment status.</span></div><div><b>Addresses</b><span>Save home, work and gifting addresses.</span></div><div><b>Wishlist</b><span>Keep your shortlist on this device.</span></div><div><b>Support</b><span>Ask for help against a specific order.</span></div>
-        <button type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setNotice(""); }} className="button buttonOutline">{mode === "login" ? "Create an account" : "I already have an account"}</button>
-      </aside>
-    </div>
+    <>
+      <style>{`
+        .premiumAuthContainer {
+          display: flex;
+          border-radius: 16px;
+          overflow: hidden;
+          box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+          background: #ffffff;
+          max-width: 1000px;
+          margin: 40px auto;
+          min-height: 600px;
+        }
+        .premiumAuthImage {
+          flex: 1;
+          background: url('/assets/img/login-img.jpg') center/cover no-repeat;
+          position: relative;
+          display: none;
+        }
+        @media (min-width: 900px) {
+          .premiumAuthImage {
+            display: block;
+          }
+        }
+        .premiumAuthImage::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(to top, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0) 100%);
+        }
+        .premiumAuthContent {
+          flex: 1;
+          padding: 60px 40px;
+          display: flex;
+          flex-direction: column;
+          justify-content: center;
+          background: #fff;
+        }
+        .premiumAuthContent h2 {
+          font-family: var(--serif);
+          font-size: 36px;
+          margin-bottom: 30px;
+          color: #111;
+        }
+        .premiumInputWrap {
+          margin-bottom: 20px;
+        }
+        .premiumInputWrap label {
+          display: block;
+          font-size: 13px;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+          margin-bottom: 8px;
+          color: #555;
+        }
+        .premiumInputWrap input {
+          width: 100%;
+          padding: 14px 16px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          font-size: 16px;
+          transition: all 0.3s ease;
+          background: #fdfdfd;
+        }
+        .premiumInputWrap input:focus {
+          border-color: #111;
+          outline: none;
+          background: #fff;
+          box-shadow: 0 0 0 4px rgba(0,0,0,0.05);
+        }
+        .premiumBtn {
+          width: 100%;
+          padding: 16px;
+          background: #111;
+          color: #fff;
+          border: none;
+          border-radius: 8px;
+          font-size: 16px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: transform 0.2s ease, background 0.2s ease;
+          margin-top: 10px;
+        }
+        .premiumBtn:hover {
+          background: #333;
+          transform: translateY(-2px);
+        }
+        .premiumSwitch {
+          text-align: center;
+          margin-top: 30px;
+          font-size: 15px;
+          color: #666;
+        }
+        .premiumSwitch button {
+          background: none;
+          border: none;
+          color: #111;
+          font-weight: 600;
+          cursor: pointer;
+          text-decoration: underline;
+          padding: 0;
+          margin-left: 8px;
+        }
+        .authBenefitsList {
+          margin-bottom: 30px;
+          padding: 20px;
+          background: #f9f9f9;
+          border-radius: 12px;
+        }
+        .authBenefitsList h3 {
+          font-size: 16px;
+          margin-bottom: 15px;
+        }
+        .authBenefitsList ul {
+          list-style: none;
+          padding: 0;
+          margin: 0;
+        }
+        .authBenefitsList li {
+          font-size: 14px;
+          color: #555;
+          margin-bottom: 10px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .authBenefitsList li i {
+          color: var(--accent-color);
+          font-size: 18px;
+        }
+      `}</style>
+      <div className="premiumAuthContainer">
+        <div className="premiumAuthImage"></div>
+        <div className="premiumAuthContent">
+          <h2>{mode === "login" ? "Sign in" : "Create an account"}</h2>
+          
+          {mode === "register" && (
+            <div className="authBenefitsList">
+              <h3>Unlock Exclusive Benefits</h3>
+              <ul>
+                <li><i className="ri-truck-line"></i> Faster checkout process</li>
+                <li><i className="ri-history-line"></i> Track your order history</li>
+                <li><i className="ri-heart-3-line"></i> Save your favourite pieces</li>
+              </ul>
+            </div>
+          )}
+
+          <form onSubmit={authenticate}>
+            {mode === "register" && (
+              <div className="premiumInputWrap">
+                <label>Full Name</label>
+                <input required name="name" autoComplete="name" placeholder="E.g. Jane Doe" />
+              </div>
+            )}
+            <div className="premiumInputWrap">
+              <label>Email Address</label>
+              <input required name="email" type="email" autoComplete="email" placeholder="jane@example.com" />
+            </div>
+            <div className="premiumInputWrap">
+              <label>Password</label>
+              <input required minLength={8} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="••••••••" />
+            </div>
+            {mode === "register" && (
+              <div className="premiumInputWrap">
+                <label>Confirm Password</label>
+                <input required minLength={8} name="password_confirmation" type="password" autoComplete="new-password" placeholder="••••••••" />
+              </div>
+            )}
+            <button disabled={loading} type="submit" className="premiumBtn">
+              {loading ? "Please wait…" : mode === "login" ? "Sign In" : "Create Account"}
+            </button>
+          </form>
+          
+          {notice && <p className="integrationNotice" style={{ marginTop: '20px', textAlign: 'center' }} role="alert">{notice}</p>}
+
+          <div className="premiumSwitch">
+            {mode === "login" ? "Don't have an account?" : "Already have an account?"}
+            <button type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setNotice(""); }}>
+              {mode === "login" ? "Create one now" : "Sign in"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
   );
 }

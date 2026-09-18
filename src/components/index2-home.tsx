@@ -3,6 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import type { Product } from "@/types/commerce";
 import type { StorefrontBanner, StorefrontBlogPost } from "@/lib/catalog-api";
 import { formatINR, getProductPrice } from "@/lib/pricing";
@@ -138,6 +139,8 @@ export function TemplateHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { cartCount, wishlist } = useStore();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -176,7 +179,7 @@ export function TemplateHeader() {
           <div className="cs_main_header_in">
             <div className="cs_main_header_left">
               <Link className="cs_site_branding" href="/" aria-label={`${siteConfig.name} home`}>
-                <Image src="/assets/img/logo.svg" alt={siteConfig.name} width={135} height={37} priority />
+                <Image src="/assets/img/sonaro-logo.png" alt={siteConfig.name} width={240} height={135} style={{ height: '60px', width: 'auto', maxHeight: '100%' }} priority />
               </Link>
             </div>
             <div className="cs_main_header_center">
@@ -184,11 +187,32 @@ export function TemplateHeader() {
                 <div className={menuOpen ? "cs_nav_list_wrapper active" : "cs_nav_list_wrapper"}>
                   <button className="cs_close_nav" type="button" onClick={() => setMenuOpen(false)} aria-label="Close navigation"><i className="ri-close-line" /></button>
                   <ul className="cs_nav_list cs_mp_0">
-                    {navItems.map((item) => (
-                      <li className={item.href === "/" ? "cs_active" : ""} key={item.href}>
-                        <Link href={item.href} onClick={() => setMenuOpen(false)}>{item.label}</Link>
-                      </li>
-                    ))}
+                    {navItems.map((item) => {
+                      const itemPath = item.href.split('?')[0];
+                      const itemQuery = item.href.includes('?') ? new URLSearchParams(item.href.split('?')[1]) : new URLSearchParams();
+                      
+                      let isActive = false;
+                      if (item.href === "/") {
+                        isActive = pathname === "/";
+                      } else {
+                        isActive = pathname === itemPath;
+                        if (isActive && itemQuery.toString()) {
+                           // If item has a specific query param (e.g. new=true), ensure it matches
+                           for (const [key, value] of Array.from(itemQuery.entries())) {
+                             if (searchParams?.get(key) !== value) {
+                               isActive = false;
+                               break;
+                             }
+                           }
+                        }
+                      }
+                      
+                      return (
+                        <li className={isActive ? "cs_active" : ""} key={item.href}>
+                          <Link href={item.href} onClick={() => setMenuOpen(false)}>{item.label}</Link>
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               </nav>
@@ -232,7 +256,7 @@ export function TemplateFooter() {
         <div className="container">
           <div className="cs_footer_grid">
             <div className="cs_footer_widget cs_text_widget">
-              <Link className="cs_footer_logo" href="/"><Image src="/assets/img/logo2.svg" alt={siteConfig.name} width={135} height={37} /></Link>
+              <Link className="cs_footer_logo" href="/"><Image src="/assets/img/sonaro-logo-white.png" alt={siteConfig.name} width={240} height={135} style={{ height: '60px', width: 'auto' }} /></Link>
               <p>Heirloom-quality jewellery crafted with intention. Each gemstone tells a story, each setting is a promise.</p>
               <h3 className="cs_footer_widget_title cs_fs_22 cs_semibold cs_white_color">Join Us</h3>
               <div className="cs_social_btns_style_1 cs_mp_0">
