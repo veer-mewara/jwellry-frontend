@@ -27,8 +27,8 @@ export default function ContactPage() {
             <b>Our Contact Details</b>
             <span>
               <strong>Visit Us:</strong><br />
-              123 Jewellery Lane<br />
-              Mumbai, Maharashtra 400001
+              Shop no1 , opp Aishwarya college,<br />
+              Naya Goan Road Pali 306401
             </span>
             <span>
               <strong>Call Us:</strong><br />
