@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { Product } from "@/types/commerce";
 import type { StorefrontBanner, StorefrontBlogPost } from "@/lib/catalog-api";
@@ -135,12 +135,46 @@ function HeroProduct({ product }: { product?: Product }) {
   );
 }
 
+function TemplateNavList({ menuOpen, setMenuOpen, navItems }: any) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  return (
+    <ul className="cs_nav_list cs_mp_0">
+      {navItems.map((item: any) => {
+        const itemPath = item.href.split('?')[0];
+        const itemQuery = item.href.includes('?') ? new URLSearchParams(item.href.split('?')[1]) : new URLSearchParams();
+        
+        let isActive = false;
+        if (item.href === "/") {
+          isActive = pathname === "/";
+        } else {
+          isActive = pathname === itemPath;
+          if (isActive && itemQuery.toString()) {
+             // If item has a specific query param (e.g. new=true), ensure it matches
+             for (const [key, value] of Array.from(itemQuery.entries())) {
+               if (searchParams?.get(key) !== value) {
+                 isActive = false;
+                 break;
+               }
+             }
+          }
+        }
+        
+        return (
+          <li className={isActive ? "cs_active" : ""} key={item.href}>
+            <Link href={item.href} onClick={() => setMenuOpen(false)}>{item.label}</Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export function TemplateHeader() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { cartCount, wishlist } = useStore();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -186,34 +220,15 @@ export function TemplateHeader() {
               <nav className="cs_nav cs_medium cs_primary_color">
                 <div className={menuOpen ? "cs_nav_list_wrapper active" : "cs_nav_list_wrapper"}>
                   <button className="cs_close_nav" type="button" onClick={() => setMenuOpen(false)} aria-label="Close navigation"><i className="ri-close-line" /></button>
-                  <ul className="cs_nav_list cs_mp_0">
-                    {navItems.map((item) => {
-                      const itemPath = item.href.split('?')[0];
-                      const itemQuery = item.href.includes('?') ? new URLSearchParams(item.href.split('?')[1]) : new URLSearchParams();
-                      
-                      let isActive = false;
-                      if (item.href === "/") {
-                        isActive = pathname === "/";
-                      } else {
-                        isActive = pathname === itemPath;
-                        if (isActive && itemQuery.toString()) {
-                           // If item has a specific query param (e.g. new=true), ensure it matches
-                           for (const [key, value] of Array.from(itemQuery.entries())) {
-                             if (searchParams?.get(key) !== value) {
-                               isActive = false;
-                               break;
-                             }
-                           }
-                        }
-                      }
-                      
-                      return (
-                        <li className={isActive ? "cs_active" : ""} key={item.href}>
-                          <Link href={item.href} onClick={() => setMenuOpen(false)}>{item.label}</Link>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <Suspense fallback={<ul className="cs_nav_list cs_mp_0">
+                    {navItems.map((item) => (
+                      <li key={item.href}>
+                        <Link href={item.href} onClick={() => setMenuOpen(false)}>{item.label}</Link>
+                      </li>
+                    ))}
+                  </ul>}>
+                    <TemplateNavList menuOpen={menuOpen} setMenuOpen={setMenuOpen} navItems={navItems} />
+                  </Suspense>
                 </div>
               </nav>
             </div>
