@@ -9,50 +9,89 @@ export const metadata: Metadata = {
 
 export default function ContactPage() {
   return (
-    <div className="customPage">
-      <section className="customHero">
-        <Image src="/assets/img/hero-bg-2.jpg" alt="Contact us" fill priority sizes="100vw" />
-        <div className="customHeroCopy">
-          <span className="eyebrow">Get in touch</span>
-          <h1>Contact Us</h1>
-          <p>We're here to help you with any questions about our jewellery, your orders, or our services.</p>
-        </div>
-      </section>
-      <section className="container enquirySection">
-        <div className="enquiryIntro">
-          <span className="eyebrow">We're here for you</span>
-          <h2>Let's talk.</h2>
-          <p>Whether you have a question about our pieces, need help with an order, or just want to say hello, our team is always ready to assist.</p>
-          <div className="enquiryPromise">
-            <b>Our Contact Details</b>
-            <span>
-              <strong>Visit Us:</strong><br />
-              Shop no1 , opp Aishwarya college,<br />
-              Naya Goan Road Pali 306401
-            </span>
-            <span>
-              <strong>Call Us:</strong><br />
-              <a href={`tel:${siteConfig.supportPhone.replace(/\s/g, "")}`}>{siteConfig.supportPhone}</a>
-            </span>
-            <span>
-              <strong>Email Us:</strong><br />
-              <a href={`mailto:${siteConfig.supportEmail}`}>{siteConfig.supportEmail}</a>
-            </span>
-            <span>
-              <strong>Hours:</strong><br />
-              Monday–Saturday, 10:00 AM–7:00 PM
-            </span>
+    <>
+
+      <div className="contact-page-wrapper">
+        <section className="hero-section">
+          <Image src="/assets/img/hero-bg-2.jpg" alt="Contact us" fill priority sizes="100vw" className="hero-img" />
+          <div className="hero-content">
+            <h1>Contact Us</h1>
+            <p>We're here to help you with any questions about our jewellery, your orders, or our services.</p>
           </div>
-        </div>
-        <form className="enquiryForm" action={`mailto:${siteConfig.supportEmail}`} method="POST" encType="text/plain">
-          <div className="formGrid">
-            <label className="fullField">Full name<input required name="name" autoComplete="name" /></label>
-            <label className="fullField">Email address<input required type="email" name="email" autoComplete="email" /></label>
-            <label className="fullField">Message<textarea required name="message" rows={6} placeholder="How can we help you today?" /></label>
+        </section>
+
+        <section className="contact-container">
+          <div className="contact-grid">
+            <div className="contact-info">
+              <div>
+                <h2>Let's talk.</h2>
+                <p>Whether you have a question about our pieces, need help with an order, or just want to say hello, our team is always ready to assist.</p>
+                
+                <div className="info-item">
+                  <i className="ri-map-pin-line"></i>
+                  <div>
+                    <h4>Visit Us</h4>
+                    <p>Shop no 1, opp Aishwarya college,<br/>Naya Goan Road Pali 306401</p>
+                  </div>
+                </div>
+                
+                <div className="info-item">
+                  <i className="ri-phone-line"></i>
+                  <div>
+                    <h4>Call Us</h4>
+                    <a href={`tel:${siteConfig.supportPhone.replace(/\s/g, "")}`}>{siteConfig.supportPhone}</a>
+                  </div>
+                </div>
+                
+                <div className="info-item">
+                  <i className="ri-mail-send-line"></i>
+                  <div>
+                    <h4>Email Us</h4>
+                    <a href={`mailto:${siteConfig.supportEmail}`}>{siteConfig.supportEmail}</a>
+                  </div>
+                </div>
+                
+                <div className="info-item">
+                  <i className="ri-time-line"></i>
+                  <div>
+                    <h4>Hours</h4>
+                    <p>Monday–Saturday<br/>10:00 AM – 7:00 PM</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div className="contact-form-wrapper">
+              <h3>Send a Message</h3>
+              <p>Fill out the form below and we'll get back to you as soon as possible.</p>
+              
+              <form action={`mailto:${siteConfig.supportEmail}`} method="POST" encType="text/plain">
+                <div className="form-grid-contact">
+                  <div className="form-group-contact">
+                    <label>First Name</label>
+                    <input required name="first_name" className="form-input-contact" placeholder="Jane" autoComplete="given-name" />
+                  </div>
+                  <div className="form-group-contact">
+                    <label>Last Name</label>
+                    <input required name="last_name" className="form-input-contact" placeholder="Doe" autoComplete="family-name" />
+                  </div>
+                  <div className="form-group-contact full">
+                    <label>Email Address</label>
+                    <input required type="email" name="email" className="form-input-contact" placeholder="jane@example.com" autoComplete="email" />
+                  </div>
+                  <div className="form-group-contact full">
+                    <label>Message</label>
+                    <textarea required name="message" className="form-input-contact" placeholder="How can we help you today?" />
+                  </div>
+                </div>
+                <button type="submit" className="submit-btn-contact">
+                  Send Message <i className="ri-arrow-right-line"></i>
+                </button>
+              </form>
+            </div>
           </div>
-          <button className="button buttonDark" type="submit">Send Message</button>
-        </form>
-      </section>
-    </div>
+        </section>
+      </div>
+    </>
   );
 }
