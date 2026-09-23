@@ -69,6 +69,15 @@ export default async function ShopPage({
     );
   });
 
+  const sort = one(query.sort);
+  if (sort === "price-asc") {
+    filtered.sort((a, b) => getProductPrice(a).total - getProductPrice(b).total);
+  } else if (sort === "price-desc") {
+    filtered.sort((a, b) => getProductPrice(b).total - getProductPrice(a).total);
+  } else if (sort === "newest") {
+    filtered.sort((a, b) => (b.newArrival ? 1 : 0) - (a.newArrival ? 1 : 0));
+  }
+
   return (
     <div className="pageShell">
       <div className="pageIntro container">
@@ -95,6 +104,15 @@ export default async function ShopPage({
       <div className="container shopLayout">
         <aside className="filters">
           <form action="/shop">
+            <div className="filterGroup">
+              <label htmlFor="sort">Sort by</label>
+              <select id="sort" name="sort" defaultValue={sort || ""}>
+                <option value="">Featured</option>
+                <option value="newest">New Arrivals</option>
+                <option value="price-asc">Price: Low to High</option>
+                <option value="price-desc">Price: High to Low</option>
+              </select>
+            </div>
             <div className="filterGroup">
               <label htmlFor="category">Category</label>
               <select id="category" name="category" defaultValue={category || ""}>

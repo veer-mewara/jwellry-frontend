@@ -318,7 +318,7 @@ export function TemplateFooter() {
           </div>
           <div className="index2InstagramGrid">
             {instagramImages.map((image) => (
-              <a href="#" className="cs_instagram_link position-relative" aria-label="Instagram" key={image}>
+              <a href="#" target="_blank" rel="noopener noreferrer" className="cs_instagram_link position-relative" aria-label="Instagram" key={image}>
                 <Image src={`/assets/img/instagram-img-${image}.jpg`} alt="Jewellery inspiration" width={420} height={420} />
                 <span className="cs_instagram_icon"><i className="ri-instagram-line" /></span>
               </a>
@@ -381,19 +381,13 @@ function HeroSlider({
             <p className="cs_hero_subtitle cs_fs_18">{hero?.copy || "Handcrafted masterpieces with brilliant diamonds and hallmarked gold."}</p>
             <div className="cs_hero_btns">
               <Link href={hero?.linkUrl || "/shop"} className="cs_btn_style_1 cs_primary_bg cs_white_color">Shop Now</Link>
-              <Link href="/custom-jewellery" className="cs_btn_style_1 cs_hero_btn_outline">Explore Collection</Link>
+              <Link href="/shop" className="cs_btn_style_1 cs_hero_btn_outline">Explore Collection</Link>
             </div>
           </div>
           <div className="cs_hero_products_wrap"><HeroProduct product={featured[0]} /><HeroProduct product={featured[1] || newArrivals[0]} /></div>
         </div></div></div>
       </div>
-      <div className="cs_slider_controller_1">
-        <div className="container-fluid"><div className="cs_controller_in">
-          <button type="button" className="cs_slider_nav" onClick={previousSlide} disabled={slideCount < 2} aria-label="Previous banner"><i className="ri-arrow-left-s-line" /><span>Prev</span></button>
-          <div className="cs_slider_fraction" aria-live="polite"><span>{slideCount ? currentIndex + 1 : 1}</span> / <span>{Math.max(slideCount, 1)}</span></div>
-          <button type="button" className="cs_slider_nav" onClick={nextSlide} disabled={slideCount < 2} aria-label="Next banner"><span>Next</span><i className="ri-arrow-right-s-line" /></button>
-        </div></div>
-      </div>
+
     </section>
   );
 }
@@ -426,7 +420,7 @@ export function Index2Home({ banners, categories, featured, newArrivals, trendin
         </div>
       </div></div></section>
 
-      {featured.length > 0 && <section className="cs_featured_section pb-0 cs_section_padding"><div className="container"><div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">Featured Masterpieces</h2></div><div className="cs_grid_col_4">{featured.slice(0, 4).map((product) => <Index2ProductTile product={product} key={product.id} />)}</div></div></section>}
+      {featured.length > 0 && <section className="cs_featured_section pb-0 cs_section_padding"><div className="container"><div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">Best Seller</h2></div><div className="cs_grid_col_4">{featured.slice(0, 4).map((product) => <Index2ProductTile product={product} key={product.id} />)}</div></div></section>}
 
       <section className="cs_offer_section pb-0 cs_section_padding"><div className="container"><div className="cs_product_promo_2"><div className="cs_promo_bg"><Image src={promoImage} alt={promo?.heading || "Jewellery special offer"} width={1320} height={480} sizes="100vw" /></div><div className="cs_promo_content"><span className="cs_promo_label cs_fs_22 cs_medium cs_primary_font cs_primary_color">Special Offer</span><h2 className="cs_promo_title cs_fs_36 cs_semibold"><Link href={promo?.linkUrl || "/shop"}>{promo?.heading || "Up to 20% Off"}</Link></h2><p className="cs_promo_desc cs_fs_18 mb-0">{promo?.copy || "Exclusive collection for your forever moment. Complimentary engraving."}</p><Link href={promo?.linkUrl || "/shop"} className="cs_promo_btn cs_medium">Shop Now</Link></div></div></div></section>
 

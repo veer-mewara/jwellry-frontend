@@ -43,6 +43,7 @@ export function AccountView() {
   const [account, setAccount] = useState<AccountData | null>(null);
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const loadAccount = useCallback(async (currentToken: string) => {
     const url = endpoint("/account");
@@ -347,12 +348,22 @@ export function AccountView() {
             </div>
             <div className="premiumInputWrap">
               <label>Password</label>
-              <input required minLength={8} name="password" type="password" autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="••••••••" />
+              <div style={{ position: "relative" }}>
+                <input required minLength={8} name="password" type={showPassword ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="••••••••" style={{ paddingRight: "40px", width: "100%" }} />
+                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "15px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#666", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }} aria-label={showPassword ? "Hide password" : "Show password"}>
+                  <i className={showPassword ? "ri-eye-off-line" : "ri-eye-line"} style={{ fontSize: "18px" }}></i>
+                </button>
+              </div>
             </div>
             {mode === "register" && (
               <div className="premiumInputWrap">
                 <label>Confirm Password</label>
-                <input required minLength={8} name="password_confirmation" type="password" autoComplete="new-password" placeholder="••••••••" />
+                <div style={{ position: "relative" }}>
+                  <input required minLength={8} name="password_confirmation" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="••••••••" style={{ paddingRight: "40px", width: "100%" }} />
+                  <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "15px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#666", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }} aria-label={showPassword ? "Hide password" : "Show password"}>
+                    <i className={showPassword ? "ri-eye-off-line" : "ri-eye-line"} style={{ fontSize: "18px" }}></i>
+                  </button>
+                </div>
               </div>
             )}
             <button disabled={loading} type="submit" className="premiumBtn">

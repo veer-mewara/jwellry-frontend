@@ -20,7 +20,7 @@ export default function CustomJewelleryPage() {
         <div><span>03</span><h2>Approve & craft</h2><p>Production begins after design and payment approval, with progress updates.</p></div>
       </section>
       <section className="container enquirySection">
-        <div className="enquiryIntro"><span className="eyebrow">Start here</span><h2>Tell us what you have in mind.</h2><p>A jewellery concierge will review the request and contact you within one business day after integration is live.</p><div className="enquiryPromise"><b>What happens next</b><span>Consultation and initial estimate</span><span>Design approval before production</span><span>Insured delivery on completion</span></div></div>
+        <div className="enquiryIntro"><span className="eyebrow">Start here</span><h2>Tell us what you have in mind.</h2><p>A jewellery concierge will review the request and contact you within one business day.</p><div className="enquiryPromise"><b>What happens next</b><span>Consultation and initial estimate</span><span>Design approval before production</span><span>Insured delivery on completion</span></div></div>
         <EnquiryForm />
       </section>
     </div>

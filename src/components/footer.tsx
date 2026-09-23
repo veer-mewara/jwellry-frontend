@@ -39,7 +39,7 @@ export async function Footer() {
           <Link href="/account">Orders & account</Link>
           <Link href="/custom-jewellery">Custom enquiry</Link>
           <Link href="/shipping-returns">Shipping & returns</Link>
-          <Link href="/privacy">Privacy policy</Link>
+          <Link href="/privacy-policy">Privacy policy</Link>
           <Link href="/journal">Jewellery journal</Link>
         </div>
         <div>
@@ -49,6 +49,10 @@ export async function Footer() {
             {siteConfig.supportPhone}
           </a>
           <p>Monday–Saturday, 10:00 AM–7:00 PM</p>
+          <div className="footerSocial" style={{ display: 'flex', gap: '15px', marginTop: '15px', fontSize: '1.25rem' }}>
+            <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" aria-label="Instagram"><i className="ri-instagram-line" /></a>
+            <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i className="ri-facebook-circle-fill" /></a>
+          </div>
         </div>
       </div>
       <div className="container footerBottom">
