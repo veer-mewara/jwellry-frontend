@@ -41,7 +41,7 @@ export function SocialLoginButtons({
   disabled = false,
   divider = true,
 }: {
-  onSignedIn: (token: string) => void | Promise<void>;
+  onSignedIn: (token: string, notice?: string) => void | Promise<void>;
   disabled?: boolean;
   divider?: boolean;
 }) {
@@ -66,7 +66,7 @@ export function SocialLoginButtons({
     preloadFirebaseAuth(firebase).catch(() => undefined);
     completeSocialRedirect(firebase)
       .then(async (result) => {
-        if (active && result?.kind === "signed-in") await onSignedInRef.current(result.token);
+        if (active && result?.kind === "signed-in") await onSignedInRef.current(result.token, result.notice);
       })
       .catch((caught: unknown) => {
         if (active) setError(socialLoginErrorMessage(caught) ?? "");
@@ -84,7 +84,7 @@ export function SocialLoginButtons({
     setError("");
     try {
       const result = await signInWithSocial(firebase, provider);
-      if (result.kind === "signed-in") await onSignedIn(result.token);
+      if (result.kind === "signed-in") await onSignedIn(result.token, result.notice);
       if (result.kind === "redirecting") return; // Page is navigating away; keep the loading state.
     } catch (caught) {
       setError(socialLoginErrorMessage(caught, provider) ?? "");

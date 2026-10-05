@@ -113,11 +113,13 @@ export function AccountView() {
     }
   }
 
-  async function socialSignedIn(newToken: string) {
+  async function socialSignedIn(newToken: string, accountNotice?: string) {
     // firebase-auth has already stored the token like a normal login.
     setNotice("");
     setToken(newToken);
     await loadAccount(newToken);
+    // Shown when the server linked an existing account and replaced its password.
+    if (accountNotice) setNotice(accountNotice);
   }
 
   async function addAddress(event: FormEvent<HTMLFormElement>) {

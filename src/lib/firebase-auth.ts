@@ -10,7 +10,7 @@ import type { FirebaseWebConfig } from "@/lib/public-settings";
 export type SocialProvider = "google" | "facebook";
 
 export type SocialLoginResult =
-  | { kind: "signed-in"; token: string }
+  | { kind: "signed-in"; token: string; notice?: string }
   | { kind: "cancelled" }
   | { kind: "redirecting" };
 
@@ -60,7 +60,7 @@ function errorCode(error: unknown): string {
   return typeof error === "object" && error && "code" in error && typeof error.code === "string" ? error.code : "";
 }
 
-async function exchangeIdToken(idToken: string): Promise<string> {
+async function exchangeIdToken(idToken: string): Promise<{ token: string; notice?: string }> {
   const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
   if (!base) throw new SocialLoginError("Account API URL is not configured.");
 
@@ -75,8 +75,8 @@ async function exchangeIdToken(idToken: string): Promise<string> {
     throw new SocialLoginError("We couldn't reach the server. Check your connection and try again.");
   }
 
-  const payload = (await response.json().catch(() => ({}))) as { token?: string; message?: string };
-  if (response.ok && payload.token) return payload.token;
+  const payload = (await response.json().catch(() => ({}))) as { token?: string; message?: string; account_notice?: string };
+  if (response.ok && payload.token) return { token: payload.token, notice: payload.account_notice || undefined };
   if (response.status === 503) {
     throw new SocialLoginError(payload.message || "Social sign-in is not available right now. Please use your email and password.");
   }
@@ -89,10 +89,10 @@ async function exchangeIdToken(idToken: string): Promise<string> {
 async function finish(fb: FirebaseHandle, credential: UserCredential): Promise<SocialLoginResult> {
   try {
     const idToken = await credential.user.getIdToken();
-    const token = await exchangeIdToken(idToken);
+    const { token, notice } = await exchangeIdToken(idToken);
     // Stored exactly like the email/password login.
     window.localStorage.setItem(ACCOUNT_TOKEN_KEY, token);
-    return { kind: "signed-in", token };
+    return { kind: "signed-in", token, notice };
   } finally {
     // The backend token is the session; never keep a Firebase session around.
     await fb.mod.signOut(fb.auth).catch(() => undefined);
