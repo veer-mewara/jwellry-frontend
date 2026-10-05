@@ -143,21 +143,31 @@ function apiUrl(path: string) {
   return base ? `${base}/api${path}` : null;
 }
 
-const CATALOG_PAGE_SIZE = 60;
-const CATALOG_MAX_PAGES = 50;
+const CATALOG_PAGE_SIZE = 500;
+const CATALOG_MAX_PAGES = 20;
+// Cached in the Next data cache so /shop (force-dynamic) does not refetch the
+// whole catalogue from the API on every request.
+const CATALOG_REVALIDATE_SECONDS = 60;
 
 export const getCatalog = cache(async (): Promise<Product[]> => {
   const base = apiUrl("/products");
   if (!base) return [];
 
+  const items: ApiProduct[] = [];
   try {
-    const items: ApiProduct[] = [];
     for (let page = 1; page <= CATALOG_MAX_PAGES; page += 1) {
       const response = await fetch(`${base}?per_page=${CATALOG_PAGE_SIZE}&page=${page}`, {
         headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(4000),
+        signal: AbortSignal.timeout(8000),
+        next: { revalidate: CATALOG_REVALIDATE_SECONDS },
       });
-      if (!response.ok) return [];
+      if (!response.ok) {
+        if (page > 1) {
+          console.warn(`Catalog page ${page} failed (${response.status}); using ${items.length} products already loaded.`);
+          break;
+        }
+        return [];
+      }
       const payload = (await response.json()) as {
         data: ApiProduct[];
         last_page?: number;
@@ -167,10 +177,11 @@ export const getCatalog = cache(async (): Promise<Product[]> => {
       const hasMore = payload.next_page_url ? true : page < (payload.last_page ?? 1);
       if (!hasMore || !payload.data.length) break;
     }
-    return items.map(mapProduct);
-  } catch {
-    return [];
+  } catch (error) {
+    if (!items.length) return [];
+    console.warn("Catalog fetch failed part-way; using products already loaded.", error);
   }
+  return items.map(mapProduct);
 });
 
 export const getCatalogProduct = cache(
