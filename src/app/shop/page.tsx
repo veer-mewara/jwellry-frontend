@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ProductCard } from "@/components/product-card";
 import { getProductPrice } from "@/lib/pricing";
 import type { Metal, Purity } from "@/types/commerce";
-import { getBanners, getCatalog } from "@/lib/catalog-api";
+import { getBanners, getCatalogResult } from "@/lib/catalog-api";
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +41,7 @@ export default async function ShopPage({
   const onlyNew = one(query.new) === "true";
   const search = (one(query.search) || "").trim().slice(0, 100);
   const requestedPage = Math.max(1, Math.floor(Number(one(query.page))) || 1);
-  const [products, banners] = await Promise.all([getCatalog(), getBanners()]);
+  const [{ products, failed: catalogFailed }, banners] = await Promise.all([getCatalogResult(), getBanners()]);
   const shopBanner = banners.find((banner) => banner.placement === "shop_top");
   const visibleCategories = Array.from(
     new Map(
@@ -233,6 +233,12 @@ export default async function ShopPage({
               {pageItems.map((product) => (
                 <ProductCard product={product} key={product.id} />
               ))}
+            </div>
+          ) : catalogFailed ? (
+            <div className="emptyState" role="alert">
+              <h2>We couldn’t load the collection right now.</h2>
+              <p>Please try again in a moment.</p>
+              <Link href="/shop" className="button buttonDark">Try again</Link>
             </div>
           ) : (
             <div className="emptyState">
