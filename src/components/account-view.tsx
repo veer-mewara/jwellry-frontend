@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ACCOUNT_TOKEN_KEY } from "@/lib/account";
+import { SocialLoginButtons } from "@/components/social-login-buttons";
 import { formatINR } from "@/lib/pricing";
 import { orderStatusLabel, saveOrderEmail } from "@/lib/orders";
 
@@ -110,6 +111,13 @@ export function AccountView() {
     } finally {
       setLoading(false);
     }
+  }
+
+  async function socialSignedIn(newToken: string) {
+    // firebase-auth has already stored the token like a normal login.
+    setNotice("");
+    setToken(newToken);
+    await loadAccount(newToken);
   }
 
   async function addAddress(event: FormEvent<HTMLFormElement>) {
@@ -340,6 +348,8 @@ export function AccountView() {
               </ul>
             </div>
           )}
+
+          <SocialLoginButtons onSignedIn={socialSignedIn} disabled={loading} />
 
           <form onSubmit={authenticate}>
             {mode === "register" && (
