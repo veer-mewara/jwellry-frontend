@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useStore } from "@/components/store-provider";
+import { useSiteSettings } from "@/components/site-settings-provider";
 import { formatINR } from "@/lib/pricing";
 import { ACCOUNT_TOKEN_KEY } from "@/lib/account";
 import { saveOrderEmail } from "@/lib/orders";
@@ -99,6 +100,7 @@ function apiMessage(result: Partial<OrderResult>) {
 
 export function CheckoutView() {
   const { cart, subtotal, couponCode, clearCart, setCouponCode, removeUnavailableItems } = useStore();
+  const { name: storeName } = useSiteSettings();
   const [notice, setNotice] = useState("");
   const [pendingOrderUuid, setPendingOrderUuid] = useState("");
   const [couponDraft, setCouponDraft] = useState(couponCode);
@@ -289,7 +291,7 @@ export function CheckoutView() {
         key: result.payment.key_id,
         amount: result.payment.amount,
         currency: result.payment.currency || "INR",
-        name: process.env.NEXT_PUBLIC_BRAND_NAME || "Sonaro",
+        name: storeName,
         description: `Order ${result.data.order_number}`,
         order_id: result.payment.razorpay_order_id,
         prefill: { email: payload.email, contact: payload.phone },

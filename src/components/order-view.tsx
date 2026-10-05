@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { formatINR } from "@/lib/pricing";
+import { useSiteSettings } from "@/components/site-settings-provider";
 import { getSavedOrderEmail, orderStatusLabel, saveOrderEmail } from "@/lib/orders";
 
 interface OrderData {
@@ -46,6 +47,7 @@ export function OrderView({
 }) {
   const router = useRouter();
   const pathname = usePathname();
+  const { name: storeName } = useSiteSettings();
   const [email, setEmail] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -146,7 +148,7 @@ export function OrderView({
     <div className="orderPage">
       {placed && (
         <p className="integrationNotice" role="status">
-          Thank you for choosing Sonaro. Your order has been placed and we will send updates to {order.email}.
+          Thank you for choosing {storeName}. Your order has been placed and we will send updates to {order.email}.
         </p>
       )}
       <section className="accountPanel">
