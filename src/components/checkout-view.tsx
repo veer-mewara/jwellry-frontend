@@ -2,10 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { useStore } from "@/components/store-provider";
 import { formatINR } from "@/lib/pricing";
 import { ACCOUNT_TOKEN_KEY } from "@/lib/account";
+import { saveOrderEmail } from "@/lib/orders";
 
 interface OrderResult {
   data: {
@@ -100,10 +102,7 @@ export function CheckoutView() {
   const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "cod">("cod");
   const [razorpayAvailable, setRazorpayAvailable] = useState(false);
   const [needsBagRefresh, setNeedsBagRefresh] = useState(false);
-  const [completedOrder, setCompletedOrder] = useState<{
-    number: string;
-    payment: string;
-  } | null>(null);
+  const router = useRouter();
   const checkoutFormRef = useRef<HTMLFormElement>(null);
   const [savedAddressNotice, setSavedAddressNotice] = useState("");
 
@@ -167,6 +166,7 @@ export function CheckoutView() {
   async function verifyPayment(
     apiBase: string,
     order: OrderResult,
+    email: string,
     payment: RazorpayResponse,
   ) {
     const response = await fetch(`${apiBase}/api/payments/razorpay/verify`, {
@@ -180,9 +180,13 @@ export function CheckoutView() {
     const result = (await response.json()) as Partial<OrderResult>;
     if (!response.ok) throw new Error(apiMessage(result));
 
+    finishOrder(order.data.uuid, email);
+  }
+
+  function finishOrder(uuid: string, email: string) {
+    saveOrderEmail(uuid, email);
     clearCart();
-    setCompletedOrder({ number: order.data.order_number, payment: "Payment confirmed" });
-    setLoading(false);
+    router.push(`/orders/${encodeURIComponent(uuid)}?placed=1`);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -239,12 +243,7 @@ export function CheckoutView() {
       }
 
       if (result.payment.method === "cod") {
-        clearCart();
-        setCompletedOrder({
-          number: result.data.order_number,
-          payment: "Cash on delivery selected",
-        });
-        setLoading(false);
+        finishOrder(result.data.uuid, payload.email);
         return;
       }
 
@@ -262,7 +261,7 @@ export function CheckoutView() {
         prefill: { email: payload.email, contact: payload.phone },
         theme: { color: "#201611" },
         handler: (payment: RazorpayResponse) => {
-          void verifyPayment(apiBase, result, payment).catch((error: unknown) => {
+          void verifyPayment(apiBase, result, payload.email, payment).catch((error: unknown) => {
             setNotice(error instanceof Error ? error.message : "Payment verification failed.");
             setLoading(false);
           });
@@ -279,20 +278,6 @@ export function CheckoutView() {
       setNotice(error instanceof Error ? error.message : "We could not place the order.");
       setLoading(false);
     }
-  }
-
-  if (completedOrder) {
-    return (
-      <div className="emptyState cartEmpty">
-        <span className="eyebrow">Order received</span>
-        <h2>Thank you for choosing Sonaro.</h2>
-        <p>
-          Your order <strong>{completedOrder.number}</strong> is confirmed. {completedOrder.payment}.
-          We’ll send updates to your email and mobile number.
-        </p>
-        <Link href="/shop" className="button buttonDark">Continue shopping</Link>
-      </div>
-    );
   }
 
   if (!cart.length) {

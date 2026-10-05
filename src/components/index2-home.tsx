@@ -202,7 +202,7 @@ export function TemplateHeader() {
             </div>
             <p className="cs_topbar_notice_text">Complimentary insured delivery across India. <Link href="/shop">Shop Now!</Link></p>
             <div className="cs_topbar_links">
-              <Link href="/account"><i className="ri-truck-line" />Order Tracking</Link>
+              <Link href="/account#orders"><i className="ri-truck-line" />Order Tracking</Link>
               <Link href="/custom-jewellery"><i className="ri-chat-1-line" />Custom Enquiry</Link>
             </div>
           </div>
