@@ -23,7 +23,7 @@ function one(value: string | string[] | undefined) {
 }
 
 function normalise(value: string) {
-  return value.toLowerCase().replace(/s+/g, " ").trim();
+  return value.toLowerCase().replace(/\s+/g, " ").trim();
 }
 
 export default async function ShopPage({
