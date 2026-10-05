@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import { ContactForm } from "@/components/contact-form";
-import { siteConfig } from "@/lib/site";
+import { getPublicSettings } from "@/lib/public-settings";
 
 export const metadata: Metadata = {
   title: "Contact Us",
@@ -11,7 +11,8 @@ export const metadata: Metadata = {
 
 
 
-export default function ContactPage() {
+export default async function ContactPage() {
+  const { site } = await getPublicSettings();
   return (
     <>
 
@@ -43,7 +44,7 @@ export default function ContactPage() {
                   <i className="ri-phone-line"></i>
                   <div>
                     <h4>Call Us</h4>
-                    <a href={`tel:${siteConfig.supportPhone.replace(/\s/g, "")}`}>{siteConfig.supportPhone}</a>
+                    <a href={`tel:${site.supportPhone.replace(/\s/g, "")}`}>{site.supportPhone}</a>
                   </div>
                 </div>
                 
@@ -51,7 +52,7 @@ export default function ContactPage() {
                   <i className="ri-mail-send-line"></i>
                   <div>
                     <h4>Email Us</h4>
-                    <a href={`mailto:${siteConfig.supportEmail}`}>{siteConfig.supportEmail}</a>
+                    <a href={`mailto:${site.supportEmail}`}>{site.supportEmail}</a>
                   </div>
                 </div>
                 

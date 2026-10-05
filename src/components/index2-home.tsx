@@ -7,7 +7,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import type { Product } from "@/types/commerce";
 import type { StorefrontBanner, StorefrontBlogPost } from "@/lib/catalog-api";
 import { formatINR, getProductPrice } from "@/lib/pricing";
-import { siteConfig } from "@/lib/site";
+import { useSiteSettings } from "@/components/site-settings-provider";
 import { useStore } from "@/components/store-provider";
 
 interface CategoryCard {
@@ -177,6 +177,7 @@ function TemplateNavList({ setMenuOpen, navItems }: { setMenuOpen: (open: boolea
 }
 
 export function TemplateHeader() {
+  const site = useSiteSettings();
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { cartCount, wishlist } = useStore();
@@ -202,8 +203,8 @@ export function TemplateHeader() {
         <div className="container-fluid">
           <div className="cs_topbar_in">
             <div className="cs_topbar_social">
-              {siteConfig.facebookUrl && <a href={siteConfig.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i className="ri-facebook-fill" /></a>}
-              {siteConfig.instagramUrl && <a href={siteConfig.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"><i className="ri-instagram-line" /></a>}
+              {site.facebookUrl && <a href={site.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i className="ri-facebook-fill" /></a>}
+              {site.instagramUrl && <a href={site.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"><i className="ri-instagram-line" /></a>}
             </div>
             <p className="cs_topbar_notice_text">Complimentary insured delivery across India. <Link href="/shop">Shop Now!</Link></p>
             <div className="cs_topbar_links">
@@ -217,8 +218,8 @@ export function TemplateHeader() {
         <div className="container-fluid">
           <div className="cs_main_header_in">
             <div className="cs_main_header_left">
-              <Link className="cs_site_branding" href="/" aria-label={`${siteConfig.name} home`}>
-                <Image src="/assets/img/sonaro-logo.png" alt={siteConfig.name} width={240} height={135} style={{ height: '60px', width: 'auto', maxHeight: '100%' }} priority />
+              <Link className="cs_site_branding" href="/" aria-label={`${site.name} home`}>
+                <Image src="/assets/img/sonaro-logo.png" alt={site.name} width={240} height={135} style={{ height: '60px', width: 'auto', maxHeight: '100%' }} priority />
               </Link>
             </div>
             <div className="cs_main_header_center">
@@ -267,6 +268,7 @@ export function TemplateHeader() {
 }
 
 export function TemplateFooter() {
+  const site = useSiteSettings();
   const currentYear = new Date().getFullYear();
   const instagramImages = [1, 2, 3, 4, 5, 6];
 
@@ -276,13 +278,13 @@ export function TemplateFooter() {
         <div className="container">
           <div className="cs_footer_grid">
             <div className="cs_footer_widget cs_text_widget">
-              <Link className="cs_footer_logo" href="/"><Image src="/assets/img/sonaro-logo-white.png" alt={siteConfig.name} width={240} height={135} style={{ height: '60px', width: 'auto' }} /></Link>
+              <Link className="cs_footer_logo" href="/"><Image src="/assets/img/sonaro-logo-white.png" alt={site.name} width={240} height={135} style={{ height: '60px', width: 'auto' }} /></Link>
               <p>Heirloom-quality jewellery crafted with intention. Each gemstone tells a story, each setting is a promise.</p>
-              {(siteConfig.facebookUrl || siteConfig.instagramUrl) && <>
+              {(site.facebookUrl || site.instagramUrl) && <>
                 <h3 className="cs_footer_widget_title cs_fs_22 cs_semibold cs_white_color">Join Us</h3>
                 <div className="cs_social_btns_style_1 cs_mp_0">
-                  {siteConfig.facebookUrl && <a href={siteConfig.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i className="ri-facebook-fill" /></a>}
-                  {siteConfig.instagramUrl && <a href={siteConfig.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"><i className="ri-instagram-line" /></a>}
+                  {site.facebookUrl && <a href={site.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i className="ri-facebook-fill" /></a>}
+                  {site.instagramUrl && <a href={site.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"><i className="ri-instagram-line" /></a>}
                 </div>
               </>}
             </div>
@@ -309,8 +311,8 @@ export function TemplateFooter() {
             <div className="cs_footer_widget">
               <h3 className="cs_footer_widget_title cs_fs_22 cs_semibold cs_white_color">Contact Us</h3>
               <ul className="cs_footer_contact cs_mp_0">
-                <li><span>Phone:</span> <a href={`tel:${siteConfig.supportPhone.replace(/\s/g, "")}`}>{siteConfig.supportPhone}</a></li>
-                <li><span>Email:</span> <a href={`mailto:${siteConfig.supportEmail}`}>{siteConfig.supportEmail}</a></li>
+                <li><span>Phone:</span> <a href={`tel:${site.supportPhone.replace(/\s/g, "")}`}>{site.supportPhone}</a></li>
+                <li><span>Email:</span> <a href={`mailto:${site.supportEmail}`}>{site.supportEmail}</a></li>
                 <li><span>Opening:</span> Mon - Sat, 10:00 AM - 7:00 PM</li>
               </ul>
             </div>
@@ -321,18 +323,18 @@ export function TemplateFooter() {
         <div className="container-fluid">
           <div className="cs_section_heading_style_1 cs_center_column text-center">
             <p className="cs_section_subtitle">Exclusive Insider</p>
-            <h2 className="cs_section_title cs_fs_36 cs_semibold cs_white_color mb-0">{siteConfig.name} Moments</h2>
+            <h2 className="cs_section_title cs_fs_36 cs_semibold cs_white_color mb-0">{site.name} Moments</h2>
           </div>
           <div className="index2InstagramGrid">
             {instagramImages.map((image) => {
               const tile = (
                 <>
                   <Image src={`/assets/img/instagram-img-${image}.jpg`} alt="Jewellery inspiration" width={420} height={420} />
-                  {siteConfig.instagramUrl && <span className="cs_instagram_icon"><i className="ri-instagram-line" /></span>}
+                  {site.instagramUrl && <span className="cs_instagram_icon"><i className="ri-instagram-line" /></span>}
                 </>
               );
-              return siteConfig.instagramUrl ? (
-                <a href={siteConfig.instagramUrl} target="_blank" rel="noopener noreferrer" className="cs_instagram_link position-relative" aria-label="Instagram" key={image}>{tile}</a>
+              return site.instagramUrl ? (
+                <a href={site.instagramUrl} target="_blank" rel="noopener noreferrer" className="cs_instagram_link position-relative" aria-label="Instagram" key={image}>{tile}</a>
               ) : (
                 <div className="cs_instagram_link position-relative" key={image}>{tile}</div>
               );
@@ -342,7 +344,7 @@ export function TemplateFooter() {
       </div>
       <div className="cs_footer_bottom">
         <div className="container"><div className="cs_footer_bottom_in">
-          <p className="cs_footer_copyright mb-0">© {currentYear} {siteConfig.name}. All rights reserved.</p>
+          <p className="cs_footer_copyright mb-0">© {currentYear} {site.name}. All rights reserved.</p>
           <div className="cs_footer_payments"><Image src="/assets/img/payment_logo.png" alt="Secure payment methods" width={248} height={28} /></div>
         </div></div>
       </div>
@@ -397,6 +399,7 @@ function HeroSlider({
 }
 
 export function Index2Home({ banners, categories, featured, newArrivals, trending, journal }: Index2HomeProps) {
+  const site = useSiteSettings();
   const promo = banners.find((banner) => banner.placement === "homepage_promo");
   const promoImage = promo?.imagePath || "/assets/img/offer-banner-1.jpg";
   const allNew = newArrivals.length ? newArrivals : featured;
@@ -430,7 +433,7 @@ export function Index2Home({ banners, categories, featured, newArrivals, trendin
 
       {allNew.length > 0 && <section className="cs_new_collection pb-0 cs_section_padding"><div className="container"><div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">New Collection</h2></div><div className="cs_grid_col_4">{allNew.slice(0, 3).map((product) => <Index2ProductTile product={product} key={product.id} />)}<article className="cs_product_style_1 cs_card_banner"><Link href="/shop" className="cs_card_banner_link"><div className="cs_promo_bg"><Image src="/assets/img/product-img-41.jpg" alt="Special celebrations" width={560} height={560} /></div><div className="cs_card_banner_content"><h3 className="cs_card_banner_title cs_fs_22 cs_medium">Special Celebrations</h3><p className="cs_card_banner_sub cs_fs_18">15% Off</p><span className="cs_card_banner_btn cs_medium">Shop Now</span></div></Link></article>{allNew.slice(3, 6).map((product) => <Index2ProductTile product={product} key={product.id} />)}</div></div></section>}
 
-      <section className="cs_why_different pb-0 cs_section_padding"><div className="container"><div className="cs_why_different_in cs_gray_bg"><div className="cs_why_different_content"><div className="cs_section_heading_style_1 mb-0"><h2 className="cs_section_title cs_fs_36 cs_semibold">Why {siteConfig.name} is different?</h2><p className="cs_why_different_desc mb-0">We don&apos;t just craft jewellery; we weave emotions into every piece. From ethically sourced gems to heirloom-quality finishing, we celebrate your unique story.</p></div><div className="cs_why_different_cards"><div className="cs_why_different_card cs_white_bg"><h3 className="cs_card_title cs_fs_22 cs_medium">Certified Authenticity</h3><p className="cs_card_text cs_fs_14 mb-0">Hallmarked gold and transparent product specifications.</p></div><div className="cs_why_different_card cs_white_bg"><h3 className="cs_card_title cs_fs_22 cs_medium">Handcrafted by Artisans</h3><p className="cs_card_text cs_fs_14 mb-0">Skilled jewellers creating pieces for life&apos;s milestones.</p></div></div><div className="cs_funfact_list cs_border_bg"><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_28 cs_semibold cs_primary_font">12k+</span><p className="cs_funfact_label cs_fs_14 mb-0">Happy Customers</p></div></div><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_28 cs_semibold cs_primary_font">98%</span><p className="cs_funfact_label cs_fs_14 mb-0">5-Star Reviews</p></div></div><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_28 cs_semibold cs_primary_font">30 <span className="cs_funfact_unit cs_fs_22 cs_medium">Days</span></span><p className="cs_funfact_label cs_fs_14 mb-0">Easy Returns</p></div></div></div></div><div className="cs_why_different_thumb"><Image src="/assets/img/why-different.jpg" alt="Woman wearing fine jewellery" width={620} height={665} /></div></div></div></section>
+      <section className="cs_why_different pb-0 cs_section_padding"><div className="container"><div className="cs_why_different_in cs_gray_bg"><div className="cs_why_different_content"><div className="cs_section_heading_style_1 mb-0"><h2 className="cs_section_title cs_fs_36 cs_semibold">Why {site.name} is different?</h2><p className="cs_why_different_desc mb-0">We don&apos;t just craft jewellery; we weave emotions into every piece. From ethically sourced gems to heirloom-quality finishing, we celebrate your unique story.</p></div><div className="cs_why_different_cards"><div className="cs_why_different_card cs_white_bg"><h3 className="cs_card_title cs_fs_22 cs_medium">Certified Authenticity</h3><p className="cs_card_text cs_fs_14 mb-0">Hallmarked gold and transparent product specifications.</p></div><div className="cs_why_different_card cs_white_bg"><h3 className="cs_card_title cs_fs_22 cs_medium">Handcrafted by Artisans</h3><p className="cs_card_text cs_fs_14 mb-0">Skilled jewellers creating pieces for life&apos;s milestones.</p></div></div><div className="cs_funfact_list cs_border_bg"><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_28 cs_semibold cs_primary_font">12k+</span><p className="cs_funfact_label cs_fs_14 mb-0">Happy Customers</p></div></div><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_28 cs_semibold cs_primary_font">98%</span><p className="cs_funfact_label cs_fs_14 mb-0">5-Star Reviews</p></div></div><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_28 cs_semibold cs_primary_font">30 <span className="cs_funfact_unit cs_fs_22 cs_medium">Days</span></span><p className="cs_funfact_label cs_fs_14 mb-0">Easy Returns</p></div></div></div></div><div className="cs_why_different_thumb"><Image src="/assets/img/why-different.jpg" alt="Woman wearing fine jewellery" width={620} height={665} /></div></div></div></section>
 
       <section className="cs_testimonial_section pb-0 cs_section_padding"><div className="container"><div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">What Our Customers Say</h2></div><div className="cs_testimonial_style_1"><div className="cs_testimonial_thumb cs_testimonial_thumb_left"><Image src="/assets/img/testimonial-1.jpg" alt="Happy customer" width={360} height={450} /></div><div className="cs_testimonial_body"><span className="cs_testimonial_quote"><Image src="/assets/img/icons/quote.svg" alt="Quote" width={45} height={38} /></span><blockquote>&quot;The craftsmanship is beautiful and the entire order experience felt considered from start to finish. My piece arrived exactly as expected and is already a treasured favourite.&quot;</blockquote><p className="cs_testimonial_name cs_medium cs_primary_color mb-0">A valued customer</p></div><div className="cs_testimonial_thumb cs_testimonial_thumb_right"><Image src="/assets/img/testimonial-2.jpg" alt="Jewellery customer" width={360} height={450} /></div></div></div></section>
 

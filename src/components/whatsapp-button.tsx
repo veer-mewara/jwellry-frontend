@@ -1,18 +1,19 @@
 "use client";
 
 import Link from "next/link";
-import { siteConfig } from "@/lib/site";
+import { useSiteSettings } from "@/components/site-settings-provider";
 
 export function WhatsappButton() {
-  const href = siteConfig.whatsappNumber
-    ? `https://wa.me/${siteConfig.whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Hello, I would like help choosing a jewellery piece.")}`
+  const { whatsappNumber } = useSiteSettings();
+  const href = whatsappNumber
+    ? `https://wa.me/${whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Hello, I would like help choosing a jewellery piece.")}`
     : "/custom-jewellery";
 
   return (
     <Link
       href={href}
-      target={siteConfig.whatsappNumber ? "_blank" : undefined}
-      rel={siteConfig.whatsappNumber ? "noreferrer" : undefined}
+      target={whatsappNumber ? "_blank" : undefined}
+      rel={whatsappNumber ? "noreferrer" : undefined}
       aria-label="Chat with our jewellery concierge"
       style={{
         position: 'fixed',

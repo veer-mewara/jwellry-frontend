@@ -7,6 +7,7 @@ import { ProductPurchase } from "@/components/product-purchase";
 import { formatINR, getProductPrice } from "@/lib/pricing";
 import { getCatalog, getCatalogProduct } from "@/lib/catalog-api";
 import { siteConfig } from "@/lib/site";
+import { getPublicSettings } from "@/lib/public-settings";
 
 function absoluteUrl(path: string) {
   if (/^https?:\/\//i.test(path)) return path;
@@ -63,7 +64,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
   if (!product) notFound();
   const price = getProductPrice(product);
   const videoEmbed = product.videoUrl ? videoEmbedUrl(product.videoUrl) : null;
-  const catalog = await getCatalog();
+  const [catalog, { site }] = await Promise.all([getCatalog(), getPublicSettings()]);
   const related = catalog
     .filter((item) => item.category === product.category && item.id !== product.id)
     .slice(0, 4);
@@ -77,7 +78,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
       description: product.description || product.summary,
       sku: product.sku,
       image: product.images.map(absoluteUrl),
-      brand: { "@type": "Brand", name: siteConfig.name },
+      brand: { "@type": "Brand", name: site.name },
       offers: {
         "@type": "Offer",
         priceCurrency: "INR",
