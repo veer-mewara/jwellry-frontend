@@ -36,6 +36,7 @@ export function CartView() {
               <span>{line.purity}</span>
               <h2><Link href={`/products/${line.slug}`}>{line.name}</Link></h2>
               <p>{formatINR(line.price)}</p>
+              {line.stock === 0 && <p className="soldOutNote" role="status">Sold out — remove this piece to check out.</p>}
               <div className="cartLineActions">
                 <div className="stepper">
                   <button type="button" aria-label="Decrease quantity" onClick={() => setQuantity(line.productId, line.quantity - 1)}>−</button>
