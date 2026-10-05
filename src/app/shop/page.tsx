@@ -14,10 +14,16 @@ export const metadata: Metadata = {
     "Explore rings, earrings, necklaces and bracelets with transparent metal, purity and price details.",
 };
 
+const PAGE_SIZE = 24;
+
 type ShopSearchParams = Promise<Record<string, string | string[] | undefined>>;
 
 function one(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function normalise(value: string) {
+  return value.toLowerCase().replace(/s+/g, " ").trim();
 }
 
 export default async function ShopPage({
@@ -33,6 +39,8 @@ export default async function ShopPage({
   const availability = one(query.availability);
   const maxPrice = Number(one(query.maxPrice)) || 0;
   const onlyNew = one(query.new) === "true";
+  const search = (one(query.search) || "").trim().slice(0, 100);
+  const requestedPage = Math.max(1, Math.floor(Number(one(query.page))) || 1);
   const [products, banners] = await Promise.all([getCatalog(), getBanners()]);
   const shopBanner = banners.find((banner) => banner.placement === "shop_top");
   const visibleCategories = Array.from(
@@ -56,6 +64,7 @@ export default async function ShopPage({
     ).values(),
   );
 
+  const searchTerm = normalise(search);
   const filtered = products.filter((product) => {
     const price = getProductPrice(product).total;
     return (
@@ -65,7 +74,9 @@ export default async function ShopPage({
       (!purity || product.purity === purity) &&
       (!availability || availability !== "in-stock" || product.stock > 0) &&
       (!maxPrice || price <= maxPrice) &&
-      (!onlyNew || product.newArrival)
+      (!onlyNew || product.newArrival) &&
+      (!searchTerm ||
+        normalise(`${product.name} ${product.sku} ${product.categoryName}`).includes(searchTerm))
     );
   });
 
@@ -78,17 +89,49 @@ export default async function ShopPage({
     filtered.sort((a, b) => (b.newArrival ? 1 : 0) - (a.newArrival ? 1 : 0));
   }
 
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const page = Math.min(requestedPage, totalPages);
+  const pageItems = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
+  function pageHref(target: number) {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      const first = one(value);
+      if (key !== "page" && first) params.set(key, first);
+    }
+    if (target > 1) params.set("page", String(target));
+    const qs = params.toString();
+    return qs ? `/shop?${qs}` : "/shop";
+  }
+
+  const clearSearchHref = (() => {
+    const params = new URLSearchParams();
+    for (const [key, value] of Object.entries(query)) {
+      const first = one(value);
+      if (key !== "page" && key !== "search" && first) params.set(key, first);
+    }
+    const qs = params.toString();
+    return qs ? `/shop?${qs}` : "/shop";
+  })();
+
+  const pageNumbers = Array.from({ length: totalPages }, (_, index) => index + 1).filter(
+    (number) => number === 1 || number === totalPages || Math.abs(number - page) <= 2,
+  );
+
   return (
     <div className="pageShell">
       <div className="pageIntro container">
         <span className="eyebrow">The collection</span>
         <h1>
-          {category
-            ? visibleCategories.find((item) => item.slug === category)?.name || "Fine jewellery"
-            : onlyNew
-              ? "New arrivals"
-              : "Fine jewellery"}
+          {search
+            ? <>Results for “{search}”</>
+            : category
+              ? visibleCategories.find((item) => item.slug === category)?.name || "Fine jewellery"
+              : onlyNew
+                ? "New arrivals"
+                : "Fine jewellery"}
         </h1>
+        {search && <p><Link className="clearFilters" href={clearSearchHref}>Clear search</Link></p>}
         <p>Use material, purity, price and availability filters to find your piece.</p>
       </div>
       {shopBanner && <section className="shopPromo container">
@@ -104,6 +147,11 @@ export default async function ShopPage({
       <div className="container shopLayout">
         <aside className="filters">
           <form action="/shop">
+            {onlyNew && <input type="hidden" name="new" value="true" />}
+            <div className="filterGroup">
+              <label htmlFor="search">Search</label>
+              <input id="search" className="shopSearchInput" type="search" name="search" maxLength={100} defaultValue={search} placeholder="Name, SKU or category" />
+            </div>
             <div className="filterGroup">
               <label htmlFor="sort">Sort by</label>
               <select id="sort" name="sort" defaultValue={sort || ""}>
@@ -177,21 +225,35 @@ export default async function ShopPage({
         </aside>
         <section className="shopResults">
           <div className="resultsBar">
-            <span>{filtered.length} pieces</span>
+            <span>{filtered.length} {filtered.length === 1 ? "piece" : "pieces"}{totalPages > 1 ? ` · page ${page} of ${totalPages}` : ""}</span>
             <span>Prices include GST</span>
           </div>
           {filtered.length ? (
             <div className="productGrid shopProductGrid">
-              {filtered.map((product) => (
+              {pageItems.map((product) => (
                 <ProductCard product={product} key={product.id} />
               ))}
             </div>
           ) : (
             <div className="emptyState">
-              <h2>No pieces match these filters.</h2>
-              <p>Try removing one or more filters to see the full collection.</p>
+              <h2>{search ? `No pieces found for “${search}”.` : "No pieces match these filters."}</h2>
+              <p>{search ? "Check the spelling, try a more general word, or clear the search." : "Try removing one or more filters to see the full collection."}</p>
               <Link href="/shop" className="button buttonDark">View all jewellery</Link>
             </div>
+          )}
+          {totalPages > 1 && (
+            <nav className="pagination" aria-label="Pagination">
+              {page > 1 ? <Link href={pageHref(page - 1)} rel="prev">Previous</Link> : <span className="paginationDisabled">Previous</span>}
+              {pageNumbers.map((number, index) => (
+                <span key={number} className="paginationItem">
+                  {index > 0 && number - pageNumbers[index - 1] > 1 && <span className="paginationGap">…</span>}
+                  {number === page
+                    ? <span className="paginationCurrent" aria-current="page">{number}</span>
+                    : <Link href={pageHref(number)}>{number}</Link>}
+                </span>
+              ))}
+              {page < totalPages ? <Link href={pageHref(page + 1)} rel="next">Next</Link> : <span className="paginationDisabled">Next</span>}
+            </nav>
           )}
         </section>
       </div>
