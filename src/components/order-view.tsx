@@ -44,6 +44,7 @@ export function OrderView({
   placed: boolean;
 }) {
   const [email, setEmail] = useState<string | null>(null);
+  const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<State>({ kind: "loading" });
 
   useEffect(() => {
@@ -59,12 +60,14 @@ export function OrderView({
     if (!email) return;
     const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
     if (!base) {
-      setState({ kind: "error", message: "The store API is not configured." });
-      return;
+      const timer = window.setTimeout(
+        () => setState({ kind: "error", message: "The store API is not configured." }),
+        0,
+      );
+      return () => window.clearTimeout(timer);
     }
 
     const controller = new AbortController();
-    setState({ kind: "loading" });
     void fetch(`${base}/api/orders/${encodeURIComponent(uuid)}?email=${encodeURIComponent(email)}`, {
       headers: { Accept: "application/json" },
       signal: controller.signal,
@@ -88,12 +91,15 @@ export function OrderView({
       });
 
     return () => controller.abort();
-  }, [email, uuid]);
+  }, [email, uuid, attempt]);
 
   function submitEmail(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const value = String(new FormData(event.currentTarget).get("email") || "").trim();
-    if (value) setEmail(value);
+    if (!value) return;
+    setState({ kind: "loading" });
+    setEmail(value);
+    setAttempt((count) => count + 1);
   }
 
   if (state.kind === "loading") {
