@@ -100,7 +100,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const storageRead = window.setTimeout(() => {
-      const savedCart = readStorage<CartLine[]>(CART_KEY, []);
+      const storedCart = readStorage<unknown>(CART_KEY, []);
+      const savedCart = Array.isArray(storedCart) ? (storedCart as CartLine[]) : [];
       setCart(savedCart.map((line) => ({
         ...line,
         quantity: clampQuantity(line.quantity, line.stock),

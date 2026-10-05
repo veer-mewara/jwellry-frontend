@@ -2978,3 +2978,10 @@ textarea.form-input-contact {
 @media (prefers-reduced-motion: reduce) {
   .loadingSpinner { animation-duration: 2.4s; }
 }
+
+.soldOutNote {
+  margin: 4px 0 0;
+  color: #9b312b;
+  font-size: 0.85rem;
+  font-weight: 600;
+}

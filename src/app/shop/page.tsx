@@ -238,7 +238,7 @@ export default async function ShopPage({
             <div className="emptyState" role="alert">
               <h2>We couldn’t load the collection right now.</h2>
               <p>Please try again in a moment.</p>
-              <Link href="/shop" className="button buttonDark">Try again</Link>
+              <Link href={pageHref(page)} className="button buttonDark">Try again</Link>
             </div>
           ) : (
             <div className="emptyState">
