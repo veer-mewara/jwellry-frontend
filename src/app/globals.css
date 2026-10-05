@@ -2939,3 +2939,14 @@ textarea.form-input-contact {
   color: var(--muted);
   background: transparent;
 }
+
+.couponDraftRow {
+  display: flex;
+  gap: 8px;
+  margin-top: 7px;
+}
+
+.couponDraftRow input {
+  flex: 1;
+  margin-top: 0;
+}

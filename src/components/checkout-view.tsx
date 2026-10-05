@@ -100,12 +100,20 @@ function apiMessage(result: Partial<OrderResult>) {
 export function CheckoutView() {
   const { cart, subtotal, couponCode, clearCart, setCouponCode } = useStore();
   const [notice, setNotice] = useState("");
+  const [pendingOrderUuid, setPendingOrderUuid] = useState("");
+  const [couponDraft, setCouponDraft] = useState(couponCode);
+  const [syncedCoupon, setSyncedCoupon] = useState(couponCode);
   const [loading, setLoading] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState<"razorpay" | "cod">("cod");
   const [razorpayAvailable, setRazorpayAvailable] = useState(false);
   const [needsBagRefresh, setNeedsBagRefresh] = useState(false);
   const router = useRouter();
   const { preview, error: couponError, checking } = useCouponPreview(cart, couponCode);
+  if (syncedCoupon !== couponCode) {
+    // Keep the draft in step when the code is changed elsewhere (restore, remove).
+    setSyncedCoupon(couponCode);
+    setCouponDraft(couponCode);
+  }
   const checkoutFormRef = useRef<HTMLFormElement>(null);
   const [savedAddressNotice, setSavedAddressNotice] = useState("");
 
@@ -166,6 +174,12 @@ export function CheckoutView() {
     return () => controller.abort();
   }, [cart.length]);
 
+  function applyCoupon() {
+    const code = couponDraft.trim().toUpperCase();
+    setCouponDraft(code);
+    if (code !== couponCode) setCouponCode(code);
+  }
+
   async function verifyPayment(
     apiBase: string,
     order: OrderResult,
@@ -195,6 +209,7 @@ export function CheckoutView() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setNotice("");
+    setPendingOrderUuid("");
     setLoading(true);
 
     const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
@@ -250,6 +265,10 @@ export function CheckoutView() {
         return;
       }
 
+      // Remember the email now so the order stays reachable if payment verification fails.
+      saveOrderEmail(result.data.uuid, payload.email);
+      setPendingOrderUuid(result.data.uuid);
+
       if (!(await loadRazorpay()) || !window.Razorpay) {
         throw new Error("Secure payment window could not load. Please check your connection.");
       }
@@ -284,7 +303,7 @@ export function CheckoutView() {
   }
 
   if (!cart.length) {
-    return <div className="emptyState cartEmpty"><h2>Your bag is empty.</h2>{notice && <p className="integrationNotice" role="status">{notice}</p>}<Link href="/shop" className="button buttonDark">Return to shop</Link></div>;
+    return <div className="emptyState cartEmpty"><h2>Your bag is empty.</h2>{notice && <p className="integrationNotice" role="status">{notice}</p>}{pendingOrderUuid && <p className="integrationNotice"><Link href={`/orders/${encodeURIComponent(pendingOrderUuid)}`}>View your order</Link></p>}<Link href="/shop" className="button buttonDark">Return to shop</Link></div>;
   }
 
   return (
@@ -312,9 +331,9 @@ export function CheckoutView() {
         </section>
         <section className="formSection">
           <div className="formSectionHead"><span>03</span><div><h2>Payment</h2><p>{razorpayAvailable ? "Secure payment powered by Razorpay." : "Cash on delivery is currently available."}</p></div></div>
-          <div className="formGrid"><label className="fullField">Coupon code <span className="mutedLabel">(optional)</span><input name="coupon_code" value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Enter offer code" autoCapitalize="characters" /></label>
+          <div className="formGrid"><label className="fullField">Coupon code <span className="mutedLabel">(optional)</span><span className="couponDraftRow"><input name="coupon_code" value={couponDraft} onChange={(event) => setCouponDraft(event.target.value)} onBlur={applyCoupon} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); applyCoupon(); } }} placeholder="Enter offer code" autoCapitalize="characters" /><button type="button" className="button buttonOutline" onClick={applyCoupon}>Apply</button></span></label>
             {couponCode && <p className="fullField couponStatus" role="status">
-              {checking && !preview && !couponError ? "Checking coupon…" : null}
+              {checking && !couponError ? "Checking coupon…" : null}
               {preview?.valid && <><strong>{couponCode}</strong> applied.</>}
               {preview && !preview.valid && (preview.message || "This coupon is invalid, expired or not applicable to this order.")}
               {couponError}
@@ -341,6 +360,7 @@ export function CheckoutView() {
         <button className="button buttonDark checkoutButton" disabled={loading} type="submit">{loading ? "Please wait…" : "Place secure order"}</button>
         <p className="priceFootnote">Final price is recalculated securely using the latest configured metal rate.</p>
         {notice && <p className="integrationNotice" role="alert">{notice}</p>}
+        {pendingOrderUuid && <p className="integrationNotice"><Link href={`/orders/${encodeURIComponent(pendingOrderUuid)}`}>View your order</Link></p>}
         {needsBagRefresh && <button className="button buttonOutline checkoutButton" type="button" onClick={() => { clearCart(); setNeedsBagRefresh(false); setNotice("Unavailable items were removed. Please add currently available jewellery again."); }}>Remove unavailable items</button>}
       </aside>
     </form>
