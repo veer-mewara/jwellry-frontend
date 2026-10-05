@@ -11,7 +11,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${siteConfig.url}/shop`, changeFrequency: "daily", priority: 0.9 },
     { url: `${siteConfig.url}/custom-jewellery`, changeFrequency: "monthly", priority: 0.7 },
     { url: `${siteConfig.url}/shipping-returns`, changeFrequency: "yearly", priority: 0.3 },
-    { url: `${siteConfig.url}/privacy`, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${siteConfig.url}/contact`, changeFrequency: "yearly", priority: 0.4 },
+    { url: `${siteConfig.url}/terms-and-conditions`, changeFrequency: "yearly", priority: 0.2 },
+    { url: `${siteConfig.url}/privacy-policy`, changeFrequency: "yearly", priority: 0.2 },
     { url: `${siteConfig.url}/journal`, changeFrequency: "weekly", priority: 0.6 },
   ];
   return [
@@ -20,7 +22,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${siteConfig.url}/products/${product.slug}`,
       changeFrequency: "weekly" as const,
       priority: 0.8,
-      images: product.images.map((image) => `${siteConfig.url}${image}`),
+      images: product.images.map((image) =>
+        /^https?:\/\//i.test(image) ? image : `${siteConfig.url}${image.startsWith("/") ? "" : "/"}${image}`,
+      ),
     })),
     ...posts.map((post) => ({
       url: `${siteConfig.url}/journal/${post.slug}`,
