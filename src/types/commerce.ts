@@ -65,4 +65,6 @@ export interface CartLine {
   price: number;
   purity: Purity;
   quantity: number;
+  /** Stock at the time the line was added or last synced; undefined for older saved bags. */
+  stock?: number;
 }

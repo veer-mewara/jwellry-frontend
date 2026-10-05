@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import type { Product } from "@/types/commerce";
-import { useStore } from "@/components/store-provider";
+import { maxQuantityFor, useStore } from "@/components/store-provider";
 
 export function ProductPurchase({ product }: { product: Product }) {
   const { addToCart, toggleWishlist, isWishlisted } = useStore();
   const [quantity, setQuantity] = useState(1);
   const [message, setMessage] = useState("");
   const wished = isWishlisted(product.id);
+  const maxQuantity = maxQuantityFor(product.stock);
 
   function add() {
     addToCart(product, quantity);
@@ -46,6 +47,10 @@ export function ProductPurchase({ product }: { product: Product }) {
           font-size: 1.2rem;
           cursor: pointer;
           color: #333;
+        }
+        .genz-quantity button:disabled {
+          opacity: 0.35;
+          cursor: not-allowed;
         }
         .genz-quantity span {
           width: 30px;
@@ -107,9 +112,9 @@ export function ProductPurchase({ product }: { product: Product }) {
 
       <div className="genz-action-row">
         <div className="genz-quantity">
-          <button type="button" onClick={() => setQuantity((value) => Math.max(1, value - 1))}>−</button>
+          <button type="button" aria-label="Decrease quantity" onClick={() => setQuantity((value) => Math.max(1, value - 1))}>−</button>
           <span>{quantity}</span>
-          <button type="button" onClick={() => setQuantity((value) => value + 1)}>+</button>
+          <button type="button" aria-label="Increase quantity" disabled={quantity >= maxQuantity} onClick={() => setQuantity((value) => Math.min(maxQuantity, value + 1))}>+</button>
         </div>
         
         <button
