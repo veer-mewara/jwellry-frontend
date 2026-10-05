@@ -55,13 +55,24 @@ async function reconcileCartWithCatalog() {
   if (!API_URL) return null;
 
   try {
-    const response = await fetch(`${API_URL}/api/products?per_page=60`, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(4000),
-    });
-    if (!response.ok) return null;
-    const payload = (await response.json()) as { data?: CatalogCartProduct[] };
-    return new Map((payload.data || []).map((product) => [product.id, product]));
+    const products: CatalogCartProduct[] = [];
+    for (let page = 1; page <= 50; page += 1) {
+      const response = await fetch(`${API_URL}/api/products?per_page=60&page=${page}`, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(4000),
+      });
+      // A partial catalog would wrongly drop cart lines, so bail out entirely.
+      if (!response.ok) return null;
+      const payload = (await response.json()) as {
+        data?: CatalogCartProduct[];
+        last_page?: number;
+        next_page_url?: string | null;
+      };
+      products.push(...(payload.data || []));
+      if (!payload.next_page_url && page >= (payload.last_page ?? 1)) break;
+      if (!payload.data?.length) break;
+    }
+    return new Map(products.map((product) => [product.id, product]));
   } catch {
     // Keep the saved bag intact if the API is temporarily unreachable.
     return null;
