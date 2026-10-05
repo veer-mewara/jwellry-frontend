@@ -143,18 +143,31 @@ function apiUrl(path: string) {
   return base ? `${base}/api${path}` : null;
 }
 
+const CATALOG_PAGE_SIZE = 60;
+const CATALOG_MAX_PAGES = 50;
+
 export const getCatalog = cache(async (): Promise<Product[]> => {
-  const url = apiUrl("/products?per_page=60");
-  if (!url) return [];
+  const base = apiUrl("/products");
+  if (!base) return [];
 
   try {
-    const response = await fetch(url, {
-      headers: { Accept: "application/json" },
-      signal: AbortSignal.timeout(4000),
-    });
-    if (!response.ok) return [];
-    const payload = (await response.json()) as { data: ApiProduct[] };
-    return payload.data.map(mapProduct);
+    const items: ApiProduct[] = [];
+    for (let page = 1; page <= CATALOG_MAX_PAGES; page += 1) {
+      const response = await fetch(`${base}?per_page=${CATALOG_PAGE_SIZE}&page=${page}`, {
+        headers: { Accept: "application/json" },
+        signal: AbortSignal.timeout(4000),
+      });
+      if (!response.ok) return [];
+      const payload = (await response.json()) as {
+        data: ApiProduct[];
+        last_page?: number;
+        next_page_url?: string | null;
+      };
+      items.push(...payload.data);
+      const hasMore = payload.next_page_url ? true : page < (payload.last_page ?? 1);
+      if (!hasMore || !payload.data.length) break;
+    }
+    return items.map(mapProduct);
   } catch {
     return [];
   }
