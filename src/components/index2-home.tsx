@@ -135,13 +135,18 @@ function HeroProduct({ product }: { product?: Product }) {
   );
 }
 
-function TemplateNavList({ menuOpen, setMenuOpen, navItems }: any) {
+interface NavItem {
+  href: string;
+  label: string;
+}
+
+function TemplateNavList({ setMenuOpen, navItems }: { setMenuOpen: (open: boolean) => void; navItems: NavItem[] }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
   return (
     <ul className="cs_nav_list cs_mp_0">
-      {navItems.map((item: any) => {
+      {navItems.map((item) => {
         const itemPath = item.href.split('?')[0];
         const itemQuery = item.href.includes('?') ? new URLSearchParams(item.href.split('?')[1]) : new URLSearchParams();
         
@@ -182,7 +187,7 @@ export function TemplateHeader() {
     window.location.assign(value ? `/shop?search=${encodeURIComponent(value)}` : "/shop");
   }
 
-  const navItems = [
+  const navItems: NavItem[] = [
     { href: "/", label: "Home" },
     { href: "/shop", label: "Shop" },
     { href: "/shop?new=true", label: "New Arrivals" },
@@ -197,8 +202,8 @@ export function TemplateHeader() {
         <div className="container-fluid">
           <div className="cs_topbar_in">
             <div className="cs_topbar_social">
-              <a href="#" aria-label="Facebook"><i className="ri-facebook-fill" /></a>
-              <a href="#" aria-label="Instagram"><i className="ri-instagram-line" /></a>
+              {siteConfig.facebookUrl && <a href={siteConfig.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i className="ri-facebook-fill" /></a>}
+              {siteConfig.instagramUrl && <a href={siteConfig.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"><i className="ri-instagram-line" /></a>}
             </div>
             <p className="cs_topbar_notice_text">Complimentary insured delivery across India. <Link href="/shop">Shop Now!</Link></p>
             <div className="cs_topbar_links">
@@ -227,7 +232,7 @@ export function TemplateHeader() {
                       </li>
                     ))}
                   </ul>}>
-                    <TemplateNavList menuOpen={menuOpen} setMenuOpen={setMenuOpen} navItems={navItems} />
+                    <TemplateNavList setMenuOpen={setMenuOpen} navItems={navItems} />
                   </Suspense>
                 </div>
               </nav>
@@ -273,11 +278,13 @@ export function TemplateFooter() {
             <div className="cs_footer_widget cs_text_widget">
               <Link className="cs_footer_logo" href="/"><Image src="/assets/img/sonaro-logo-white.png" alt={siteConfig.name} width={240} height={135} style={{ height: '60px', width: 'auto' }} /></Link>
               <p>Heirloom-quality jewellery crafted with intention. Each gemstone tells a story, each setting is a promise.</p>
-              <h3 className="cs_footer_widget_title cs_fs_22 cs_semibold cs_white_color">Join Us</h3>
-              <div className="cs_social_btns_style_1 cs_mp_0">
-                <a href="#" aria-label="Facebook"><i className="ri-facebook-fill" /></a>
-                <a href="#" aria-label="Instagram"><i className="ri-instagram-line" /></a>
-              </div>
+              {(siteConfig.facebookUrl || siteConfig.instagramUrl) && <>
+                <h3 className="cs_footer_widget_title cs_fs_22 cs_semibold cs_white_color">Join Us</h3>
+                <div className="cs_social_btns_style_1 cs_mp_0">
+                  {siteConfig.facebookUrl && <a href={siteConfig.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i className="ri-facebook-fill" /></a>}
+                  {siteConfig.instagramUrl && <a href={siteConfig.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"><i className="ri-instagram-line" /></a>}
+                </div>
+              </>}
             </div>
             <div className="cs_footer_widget">
               <h3 className="cs_footer_widget_title cs_fs_22 cs_semibold cs_white_color">Discover</h3>
@@ -317,12 +324,19 @@ export function TemplateFooter() {
             <h2 className="cs_section_title cs_fs_36 cs_semibold cs_white_color mb-0">{siteConfig.name} Moments</h2>
           </div>
           <div className="index2InstagramGrid">
-            {instagramImages.map((image) => (
-              <a href="#" target="_blank" rel="noopener noreferrer" className="cs_instagram_link position-relative" aria-label="Instagram" key={image}>
-                <Image src={`/assets/img/instagram-img-${image}.jpg`} alt="Jewellery inspiration" width={420} height={420} />
-                <span className="cs_instagram_icon"><i className="ri-instagram-line" /></span>
-              </a>
-            ))}
+            {instagramImages.map((image) => {
+              const tile = (
+                <>
+                  <Image src={`/assets/img/instagram-img-${image}.jpg`} alt="Jewellery inspiration" width={420} height={420} />
+                  {siteConfig.instagramUrl && <span className="cs_instagram_icon"><i className="ri-instagram-line" /></span>}
+                </>
+              );
+              return siteConfig.instagramUrl ? (
+                <a href={siteConfig.instagramUrl} target="_blank" rel="noopener noreferrer" className="cs_instagram_link position-relative" aria-label="Instagram" key={image}>{tile}</a>
+              ) : (
+                <div className="cs_instagram_link position-relative" key={image}>{tile}</div>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -356,16 +370,6 @@ function HeroSlider({
 
     return () => window.clearInterval(timer);
   }, [slideCount]);
-
-  function previousSlide() {
-    if (slideCount < 2) return;
-    setActiveIndex((index) => (index + slideCount - 1) % slideCount);
-  }
-
-  function nextSlide() {
-    if (slideCount < 2) return;
-    setActiveIndex((index) => (index + 1) % slideCount);
-  }
 
   return (
     <section className="cs_hero_style_1 cs_gray5_bg position-relative" aria-roledescription="carousel" aria-label="Featured jewellery collections">

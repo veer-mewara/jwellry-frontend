@@ -6,4 +6,6 @@ export const siteConfig = {
   supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "manipreciousllp@gmail.com",
   supportPhone: process.env.NEXT_PUBLIC_SUPPORT_PHONE || "9664115493",
   whatsappNumber: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "",
+  instagramUrl: process.env.NEXT_PUBLIC_INSTAGRAM_URL || "",
+  facebookUrl: process.env.NEXT_PUBLIC_FACEBOOK_URL || "",
 };
