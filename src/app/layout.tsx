@@ -6,35 +6,41 @@ import { TemplateFooter, TemplateHeader } from "@/components/index2-home";
 import { StoreProvider } from "@/components/store-provider";
 import { WhatsappButton } from "@/components/whatsapp-button";
 import { GoogleAnalytics } from "@/components/google-analytics";
-import { siteConfig } from "@/lib/site";
+import { SiteSettingsProvider } from "@/components/site-settings-provider";
+import { getPublicSettings } from "@/lib/public-settings";
 
-export const metadata: Metadata = {
-  metadataBase: new URL(siteConfig.url),
-  title: {
-    default: `${siteConfig.name} | Fine Jewellery`,
-    template: `%s | ${siteConfig.name}`,
-  },
-  description: siteConfig.description,
-  keywords: [
-    "fine jewellery",
-    "gold jewellery",
-    "diamond rings",
-    "hallmarked jewellery",
-    "jewellery online India",
-  ],
-  openGraph: {
-    type: "website",
-    title: siteConfig.name,
-    description: siteConfig.description,
-    siteName: siteConfig.name,
-    images: ["/assets/img/hero-bg-1.jpg"],
-  },
-  verification: {
-    google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
-  },
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const { site } = await getPublicSettings();
+  return {
+    metadataBase: new URL(site.url),
+    title: {
+      default: `${site.name} | Fine Jewellery`,
+      template: `%s | ${site.name}`,
+    },
+    description: site.description,
+    keywords: [
+      "fine jewellery",
+      "gold jewellery",
+      "diamond rings",
+      "hallmarked jewellery",
+      "jewellery online India",
+    ],
+    openGraph: {
+      type: "website",
+      title: site.name,
+      description: site.description,
+      siteName: site.name,
+      images: ["/assets/img/hero-bg-1.jpg"],
+    },
+    verification: {
+      google: site.googleSiteVerification || undefined,
+    },
+  };
+}
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const settings = await getPublicSettings();
+
   return (
     <html lang="en">
       <head>
@@ -44,13 +50,15 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <link rel="stylesheet" href="/assets/css/style.css" />
       </head>
       <body>
-        <StoreProvider>
-          <TemplateHeader />
-          <main className="storefrontMain">{children}</main>
-          <TemplateFooter />
-          <WhatsappButton />
-        </StoreProvider>
-        <GoogleAnalytics />
+        <SiteSettingsProvider settings={settings}>
+          <StoreProvider>
+            <TemplateHeader />
+            <main className="storefrontMain">{children}</main>
+            <TemplateFooter />
+            <WhatsappButton />
+          </StoreProvider>
+        </SiteSettingsProvider>
+        <GoogleAnalytics measurementId={settings.site.gaMeasurementId} />
       </body>
     </html>
   );
