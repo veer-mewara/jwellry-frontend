@@ -6,6 +6,12 @@ import { ProductGallery } from "@/components/product-gallery";
 import { ProductPurchase } from "@/components/product-purchase";
 import { formatINR, getProductPrice } from "@/lib/pricing";
 import { getCatalog, getCatalogProduct } from "@/lib/catalog-api";
+import { siteConfig } from "@/lib/site";
+
+function absoluteUrl(path: string) {
+  if (/^https?:\/\//i.test(path)) return path;
+  return `${siteConfig.url}${path.startsWith("/") ? "" : "/"}${path}`;
+}
 
 export const dynamic = "force-dynamic";
 
@@ -41,7 +47,13 @@ export async function generateMetadata({
   return {
     title: product.metaTitle || product.name,
     description: product.metaDescription || product.summary,
-    openGraph: { images: [product.images[0]] },
+    alternates: { canonical: `/products/${product.slug}` },
+    openGraph: {
+      title: product.metaTitle || product.name,
+      description: product.metaDescription || product.summary,
+      url: `/products/${product.slug}`,
+      ...(product.images[0] ? { images: [product.images[0]] } : {}),
+    },
   };
 }
 
@@ -56,8 +68,46 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
     .filter((item) => item.category === product.category && item.id !== product.id)
     .slice(0, 4);
 
+  const productUrl = absoluteUrl(`/products/${product.slug}`);
+  const jsonLd = [
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      name: product.name,
+      description: product.description || product.summary,
+      sku: product.sku,
+      image: product.images.map(absoluteUrl),
+      brand: { "@type": "Brand", name: siteConfig.name },
+      offers: {
+        "@type": "Offer",
+        priceCurrency: "INR",
+        price: price.total,
+        availability: product.stock > 0
+          ? "https://schema.org/InStock"
+          : "https://schema.org/OutOfStock",
+        url: productUrl,
+      },
+    },
+    {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      itemListElement: [
+        { name: "Home", item: absoluteUrl("/") },
+        { name: "Shop", item: absoluteUrl("/shop") },
+        ...(product.category
+          ? [{ name: product.categoryName || product.category, item: absoluteUrl(`/shop?category=${product.category}`) }]
+          : []),
+        { name: product.name, item: productUrl },
+      ].map((entry, index) => ({ "@type": "ListItem", position: index + 1, ...entry })),
+    },
+  ];
+
   return (
     <div className="productPage container">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+      />
       <nav className="breadcrumbs" aria-label="Breadcrumb">
         <Link href="/">Home</Link><span>/</span>
         <Link href={`/shop?category=${product.category}`}>{product.category}</Link><span>/</span>
@@ -75,7 +125,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
           <div className="specPills">
             <span>{product.purity} {product.metal}</span>
             <span>{product.netMetalWeight}g net weight</span>
-            <span>{product.stock ? `${product.stock} in stock` : "Made to order"}</span>
+            <span>{product.stock ? `${product.stock} in stock` : "Sold out"}</span>
           </div>
           <ProductPurchase product={product} />
           <div className="deliveryNote">
