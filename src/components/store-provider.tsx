@@ -51,28 +51,20 @@ interface CatalogCartProduct {
   pricing: { total: number };
 }
 
-async function reconcileCartWithCatalog() {
-  if (!API_URL) return null;
+async function reconcileCartWithCatalog(productIds: number[]) {
+  if (!API_URL || !productIds.length) return null;
 
   try {
-    const products: CatalogCartProduct[] = [];
-    for (let page = 1; page <= 50; page += 1) {
-      const response = await fetch(`${API_URL}/api/products?per_page=60&page=${page}`, {
-        headers: { Accept: "application/json" },
-        signal: AbortSignal.timeout(4000),
-      });
-      // A partial catalog would wrongly drop cart lines, so bail out entirely.
-      if (!response.ok) return null;
-      const payload = (await response.json()) as {
-        data?: CatalogCartProduct[];
-        last_page?: number;
-        next_page_url?: string | null;
-      };
-      products.push(...(payload.data || []));
-      if (!payload.next_page_url && page >= (payload.last_page ?? 1)) break;
-      if (!payload.data?.length) break;
-    }
-    return new Map(products.map((product) => [product.id, product]));
+    const ids = Array.from(new Set(productIds)).join(",");
+    const response = await fetch(`${API_URL}/api/products?ids=${ids}&per_page=60`, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(4000),
+    });
+    // Only a successful response proves a product is gone; otherwise keep the bag.
+    if (!response.ok) return null;
+    const payload = (await response.json()) as { data?: CatalogCartProduct[] };
+    if (!Array.isArray(payload.data)) return null;
+    return new Map(payload.data.map((product) => [product.id, product]));
   } catch {
     // Keep the saved bag intact if the API is temporarily unreachable.
     return null;
@@ -87,12 +79,15 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     const storageRead = window.setTimeout(() => {
-      setCart(readStorage<CartLine[]>(CART_KEY, []));
+      const savedCart = readStorage<CartLine[]>(CART_KEY, []);
+      setCart(savedCart);
       setWishlist(readStorage<number[]>(WISHLIST_KEY, []));
       setCouponCode(readStorage<string>(COUPON_KEY, ""));
       setHydrated(true);
 
-      void reconcileCartWithCatalog().then((catalog) => {
+      if (!savedCart.length) return;
+
+      void reconcileCartWithCatalog(savedCart.map((line) => line.productId)).then((catalog) => {
         if (!catalog) return;
 
         setCart((current) => current.flatMap((line) => {
