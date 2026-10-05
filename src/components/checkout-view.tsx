@@ -8,6 +8,8 @@ import { useStore } from "@/components/store-provider";
 import { formatINR } from "@/lib/pricing";
 import { ACCOUNT_TOKEN_KEY } from "@/lib/account";
 import { saveOrderEmail } from "@/lib/orders";
+import { useCouponPreview } from "@/lib/coupon-preview";
+import { CouponTotals, couponTotal } from "@/components/coupon-totals";
 
 interface OrderResult {
   data: {
@@ -103,6 +105,7 @@ export function CheckoutView() {
   const [razorpayAvailable, setRazorpayAvailable] = useState(false);
   const [needsBagRefresh, setNeedsBagRefresh] = useState(false);
   const router = useRouter();
+  const { preview, error: couponError, checking } = useCouponPreview(cart, couponCode);
   const checkoutFormRef = useRef<HTMLFormElement>(null);
   const [savedAddressNotice, setSavedAddressNotice] = useState("");
 
@@ -309,7 +312,16 @@ export function CheckoutView() {
         </section>
         <section className="formSection">
           <div className="formSectionHead"><span>03</span><div><h2>Payment</h2><p>{razorpayAvailable ? "Secure payment powered by Razorpay." : "Cash on delivery is currently available."}</p></div></div>
-          <div className="formGrid"><label className="fullField">Coupon code <span className="mutedLabel">(optional)</span><input name="coupon_code" value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Enter offer code" autoCapitalize="characters" /></label></div>
+          <div className="formGrid"><label className="fullField">Coupon code <span className="mutedLabel">(optional)</span><input name="coupon_code" value={couponCode} onChange={(event) => setCouponCode(event.target.value.toUpperCase())} placeholder="Enter offer code" autoCapitalize="characters" /></label>
+            {couponCode && <p className="fullField couponStatus" role="status">
+              {checking && !preview && !couponError ? "Checking coupon…" : null}
+              {preview?.valid && <><strong>{couponCode}</strong> applied.</>}
+              {preview && !preview.valid && (preview.message || "This coupon is invalid, expired or not applicable to this order.")}
+              {couponError}
+              {" "}
+              <button type="button" className="couponRemove" onClick={() => setCouponCode("")}>Remove code</button>
+            </p>}
+          </div>
           <label className="paymentOption"><input type="radio" disabled={!razorpayAvailable} checked={paymentMethod === "razorpay"} onChange={() => setPaymentMethod("razorpay")} name="payment" value="razorpay" /><span><b>Cards, UPI, netbanking & wallets</b><small>{razorpayAvailable ? "Razorpay secure checkout" : "Available after merchant credentials are configured"}</small></span></label>
           <label className="paymentOption"><input type="radio" checked={paymentMethod === "cod"} onChange={() => setPaymentMethod("cod")} name="payment" value="cod" /><span><b>Cash on delivery</b><small>Subject to serviceability and order value rules</small></span></label>
         </section>
@@ -325,7 +337,7 @@ export function CheckoutView() {
             </div>
           ))}
         </div>
-        <div className="checkoutTotals"><div><span>Estimated subtotal</span><b>{formatINR(subtotal)}</b></div><div><span>Insured shipping</span><b>Free</b></div><div className="summaryTotal"><span>Estimated total</span><b>{formatINR(subtotal)}</b></div></div>
+        <div className="checkoutTotals"><CouponTotals subtotal={subtotal} preview={preview} /><div><span>Insured shipping</span><b>Free</b></div><div className="summaryTotal"><span>Estimated total</span><b>{formatINR(couponTotal(subtotal, preview))}</b></div></div>
         <button className="button buttonDark checkoutButton" disabled={loading} type="submit">{loading ? "Please wait…" : "Place secure order"}</button>
         <p className="priceFootnote">Final price is recalculated securely using the latest configured metal rate.</p>
         {notice && <p className="integrationNotice" role="alert">{notice}</p>}

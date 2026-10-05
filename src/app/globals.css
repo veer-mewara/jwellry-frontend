@@ -2917,3 +2917,25 @@ textarea.form-input-contact {
   background: var(--paper);
   border: 1px solid var(--line);
 }
+
+.couponStatus {
+  display: block;
+  margin-top: 10px;
+  color: var(--brown);
+  font-size: 10px;
+}
+
+.couponRemove {
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 10px;
+  text-decoration: underline;
+}
+
+.couponForm .couponRemove {
+  color: var(--muted);
+  background: transparent;
+}

@@ -5,10 +5,13 @@ import Link from "next/link";
 import { useState } from "react";
 import { useStore } from "@/components/store-provider";
 import { formatINR } from "@/lib/pricing";
+import { useCouponPreview } from "@/lib/coupon-preview";
+import { CouponTotals, couponTotal } from "@/components/coupon-totals";
 
 export function CartView() {
   const { cart, subtotal, couponCode, setCouponCode, setQuantity, removeFromCart } = useStore();
   const [coupon, setCoupon] = useState(couponCode);
+  const { preview, error, checking } = useCouponPreview(cart, couponCode);
 
   if (!cart.length) {
     return (
@@ -48,16 +51,23 @@ export function CartView() {
       </div>
       <aside className="orderSummary">
         <h2>Order summary</h2>
-        <div><span>Subtotal</span><b>{formatINR(subtotal)}</b></div>
+        <CouponTotals subtotal={subtotal} preview={preview} />
         <div><span>Shipping</span><b>Calculated at checkout</b></div>
-        <div className="summaryTotal"><span>Estimated total</span><b>{formatINR(subtotal)}</b></div>
+        <div className="summaryTotal"><span>Estimated total</span><b>{formatINR(couponTotal(subtotal, preview))}</b></div>
         <form className="couponForm" onSubmit={(event) => {
           event.preventDefault();
           setCouponCode(coupon.trim().toUpperCase());
         }}>
           <label htmlFor="coupon">Coupon code</label>
           <div><input id="coupon" value={coupon} onChange={(event) => setCoupon(event.target.value)} placeholder="Enter code" /><button type="submit">Apply</button></div>
-          {couponCode && <small><strong>{couponCode}</strong> saved. Its eligibility and final discount will be verified securely at checkout.</small>}
+          {couponCode && <small className="couponStatus" role="status">
+            {checking && !preview && !error ? "Checking coupon…" : null}
+            {preview?.valid && <><strong>{couponCode}</strong> applied.</>}
+            {preview && !preview.valid && (preview.message || "This coupon is invalid, expired or not applicable to this order.")}
+            {error}
+            {" "}
+            <button type="button" className="couponRemove" onClick={() => { setCouponCode(""); setCoupon(""); }}>Remove code</button>
+          </small>}
         </form>
         <Link className="button buttonDark checkoutButton" href="/checkout">Proceed to secure checkout</Link>
         <p className="secureNote">Choose cash on delivery or an available online payment method at checkout.</p>
