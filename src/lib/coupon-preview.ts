@@ -48,6 +48,16 @@ export function useCouponPreview(cart: CartLine[], couponCode: string) {
           body: JSON.stringify({ coupon_code: couponCode, items }),
           signal: controller.signal,
         });
+        if (response.status === 429) {
+          if (controller.signal.aborted) return;
+          setState({
+            code: couponCode,
+            key,
+            preview: null,
+            error: "Too many attempts, please wait a minute.",
+          });
+          return;
+        }
         const payload = (await response.json()) as {
           data?: CouponPreview;
           message?: string;
@@ -80,10 +90,10 @@ export function useCouponPreview(cart: CartLine[], couponCode: string) {
     };
   }, [active, couponCode, items, key]);
 
-  const current = active && state && state.code === couponCode ? state : null;
+  const current = active && state && state.key === key ? state : null;
   return {
     preview: current?.preview ?? null,
     error: current?.error ?? "",
-    checking: active && current?.key !== key,
+    checking: active && !current,
   };
 }
