@@ -149,9 +149,15 @@ const CATALOG_MAX_PAGES = 20;
 // whole catalogue from the API on every request.
 const CATALOG_REVALIDATE_SECONDS = 60;
 
-export const getCatalog = cache(async (): Promise<Product[]> => {
+export interface CatalogResult {
+  products: Product[];
+  /** True when the catalogue could not be loaded at all (as opposed to being empty). */
+  failed: boolean;
+}
+
+export const getCatalogResult = cache(async (): Promise<CatalogResult> => {
   const base = apiUrl("/products");
-  if (!base) return [];
+  if (!base) return { products: [], failed: true };
 
   const items: ApiProduct[] = [];
   try {
@@ -166,7 +172,7 @@ export const getCatalog = cache(async (): Promise<Product[]> => {
           console.warn(`Catalog page ${page} failed (${response.status}); using ${items.length} products already loaded.`);
           break;
         }
-        return [];
+        return { products: [], failed: true };
       }
       const payload = (await response.json()) as {
         data: ApiProduct[];
@@ -178,10 +184,14 @@ export const getCatalog = cache(async (): Promise<Product[]> => {
       if (!hasMore || !payload.data.length) break;
     }
   } catch (error) {
-    if (!items.length) return [];
+    if (!items.length) return { products: [], failed: true };
     console.warn("Catalog fetch failed part-way; using products already loaded.", error);
   }
-  return items.map(mapProduct);
+  return { products: items.map(mapProduct), failed: false };
+});
+
+export const getCatalog = cache(async (): Promise<Product[]> => {
+  return (await getCatalogResult()).products;
 });
 
 export const getCatalogProduct = cache(

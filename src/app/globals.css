@@ -2950,3 +2950,31 @@ textarea.form-input-contact {
   flex: 1;
   margin-top: 0;
 }
+
+.statusActions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+
+.emptyState .eyebrow {
+  margin-bottom: 8px;
+}
+
+.loadingSpinner {
+  width: 34px;
+  height: 34px;
+  border: 2px solid var(--line);
+  border-top-color: var(--brown);
+  border-radius: 50%;
+  animation: loadingSpin 0.8s linear infinite;
+}
+
+@keyframes loadingSpin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loadingSpinner { animation-duration: 2.4s; }
+}
