@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
 import { formatINR } from "@/lib/pricing";
 import { getSavedOrderEmail, orderStatusLabel, saveOrderEmail } from "@/lib/orders";
@@ -43,6 +44,8 @@ export function OrderView({
   queryEmail: string;
   placed: boolean;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [email, setEmail] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -50,11 +53,19 @@ export function OrderView({
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const known = queryEmail || getSavedOrderEmail(uuid);
+      if (queryEmail) {
+        // Keep the email out of the address bar, history and referrers.
+        saveOrderEmail(uuid, queryEmail);
+        const params = new URLSearchParams(window.location.search);
+        params.delete("email");
+        const rest = params.toString();
+        router.replace(rest ? `${pathname}?${rest}` : pathname, { scroll: false });
+      }
       if (known) setEmail(known);
       else setState({ kind: "needEmail" });
     }, 0);
     return () => window.clearTimeout(timer);
-  }, [uuid, queryEmail]);
+  }, [uuid, queryEmail, router, pathname]);
 
   useEffect(() => {
     if (!email) return;
