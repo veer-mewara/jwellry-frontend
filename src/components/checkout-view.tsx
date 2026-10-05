@@ -98,7 +98,7 @@ function apiMessage(result: Partial<OrderResult>) {
 }
 
 export function CheckoutView() {
-  const { cart, subtotal, couponCode, clearCart, setCouponCode } = useStore();
+  const { cart, subtotal, couponCode, clearCart, setCouponCode, removeUnavailableItems } = useStore();
   const [notice, setNotice] = useState("");
   const [pendingOrderUuid, setPendingOrderUuid] = useState("");
   const [couponDraft, setCouponDraft] = useState(couponCode);
@@ -204,6 +204,18 @@ export function CheckoutView() {
     saveOrderEmail(uuid, email);
     clearCart();
     router.push(`/orders/${encodeURIComponent(uuid)}?placed=1`);
+  }
+
+  async function removeUnavailable() {
+    const removed = await removeUnavailableItems();
+    if (removed === null) {
+      setNotice("We couldn’t check your bag right now. Please try again in a moment.");
+      return;
+    }
+    setNeedsBagRefresh(false);
+    setNotice(removed
+      ? `${removed} unavailable ${removed === 1 ? "item was" : "items were"} removed from your bag. You can now place your order.`
+      : "We couldn’t find any unavailable items. Please try placing your order again.");
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -361,7 +373,7 @@ export function CheckoutView() {
         <p className="priceFootnote">Final price is recalculated securely using the latest configured metal rate.</p>
         {notice && <p className="integrationNotice" role="alert">{notice}</p>}
         {pendingOrderUuid && <p className="integrationNotice"><Link href={`/orders/${encodeURIComponent(pendingOrderUuid)}`}>View your order</Link></p>}
-        {needsBagRefresh && <button className="button buttonOutline checkoutButton" type="button" onClick={() => { clearCart(); setNeedsBagRefresh(false); setNotice("Unavailable items were removed. Please add currently available jewellery again."); }}>Remove unavailable items</button>}
+        {needsBagRefresh && <button className="button buttonOutline checkoutButton" type="button" onClick={() => { void removeUnavailable(); }}>Remove unavailable items</button>}
       </aside>
     </form>
   );

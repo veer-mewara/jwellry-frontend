@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useState } from "react";
-import { useStore } from "@/components/store-provider";
+import { maxQuantityFor, useStore } from "@/components/store-provider";
 import { formatINR } from "@/lib/pricing";
 import { useCouponPreview } from "@/lib/coupon-preview";
 import { CouponTotals, couponTotal } from "@/components/coupon-totals";
@@ -38,9 +38,9 @@ export function CartView() {
               <p>{formatINR(line.price)}</p>
               <div className="cartLineActions">
                 <div className="stepper">
-                  <button type="button" onClick={() => setQuantity(line.productId, line.quantity - 1)}>−</button>
+                  <button type="button" aria-label="Decrease quantity" onClick={() => setQuantity(line.productId, line.quantity - 1)}>−</button>
                   <span>{line.quantity}</span>
-                  <button type="button" onClick={() => setQuantity(line.productId, line.quantity + 1)}>+</button>
+                  <button type="button" aria-label="Increase quantity" disabled={line.quantity >= maxQuantityFor(line.stock)} onClick={() => setQuantity(line.productId, line.quantity + 1)}>+</button>
                 </div>
                 <button type="button" className="removeButton" onClick={() => removeFromCart(line.productId)}>Remove</button>
               </div>

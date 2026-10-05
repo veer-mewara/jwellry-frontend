@@ -14,7 +14,21 @@ import { getProductPrice } from "@/lib/pricing";
 const CART_KEY = "sonaro_cart_v1";
 const WISHLIST_KEY = "sonaro_wishlist_v1";
 const COUPON_KEY = "sonaro_coupon_v1";
+export const MAX_LINE_QUANTITY = 10;
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
+
+/** Highest quantity a customer may order of one piece: min(10, stock). */
+export function maxQuantityFor(stock: number | undefined) {
+  if (stock === undefined || !Number.isFinite(stock)) return MAX_LINE_QUANTITY;
+  return Math.max(0, Math.min(MAX_LINE_QUANTITY, Math.floor(stock)));
+}
+
+function clampQuantity(quantity: number, stock: number | undefined) {
+  const limit = maxQuantityFor(stock);
+  const safe = Number.isFinite(quantity) ? Math.floor(quantity) : 1;
+  // A sold-out line keeps quantity 1; it is flagged as unavailable instead.
+  return Math.max(1, Math.min(safe, limit || 1));
+}
 
 interface StoreContextValue {
   cart: CartLine[];
@@ -28,6 +42,12 @@ interface StoreContextValue {
   toggleWishlist: (productId: number) => void;
   isWishlisted: (productId: number) => boolean;
   clearCart: () => void;
+  /**
+   * Removes only lines that are no longer sold (missing from the catalogue or
+   * out of stock). Resolves to the number removed, or null if the catalogue
+   * could not be checked (the bag is left untouched in that case).
+   */
+  removeUnavailableItems: () => Promise<number | null>;
   setCouponCode: (code: string) => void;
 }
 
@@ -48,6 +68,7 @@ interface CatalogCartProduct {
   name: string;
   purity: CartLine["purity"];
   images: Array<{ path: string }>;
+  stock_quantity?: number;
   pricing: { total: number };
 }
 
@@ -80,7 +101,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const storageRead = window.setTimeout(() => {
       const savedCart = readStorage<CartLine[]>(CART_KEY, []);
-      setCart(savedCart);
+      setCart(savedCart.map((line) => ({
+        ...line,
+        quantity: clampQuantity(line.quantity, line.stock),
+      })));
       setWishlist(readStorage<number[]>(WISHLIST_KEY, []));
       setCouponCode(readStorage<string>(COUPON_KEY, ""));
       setHydrated(true);
@@ -101,6 +125,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             image: product.images[0].path,
             price: product.pricing.total,
             purity: product.purity,
+            stock: product.stock_quantity ?? line.stock,
+            quantity: clampQuantity(line.quantity, product.stock_quantity ?? line.stock),
           }];
         }));
       });
@@ -129,7 +155,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       if (existing) {
         return current.map((line) =>
           line.productId === product.id
-            ? { ...line, quantity: line.quantity + Math.max(quantity, 1) }
+            ? {
+                ...line,
+                stock: product.stock,
+                quantity: clampQuantity(line.quantity + Math.max(quantity, 1), product.stock),
+              }
             : line,
         );
       }
@@ -142,7 +172,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           image: product.images[0],
           price,
           purity: product.purity,
-          quantity: Math.max(quantity, 1),
+          quantity: clampQuantity(Math.max(quantity, 1), product.stock),
+          stock: product.stock,
         },
       ];
     });
@@ -158,10 +189,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (quantity < 1) return;
     setCart((current) =>
       current.map((line) =>
-        line.productId === productId ? { ...line, quantity } : line,
+        line.productId === productId
+          ? { ...line, quantity: clampQuantity(quantity, line.stock) }
+          : line,
       ),
     );
   }, []);
+
+  const removeUnavailableItems = useCallback(async () => {
+    const catalog = await reconcileCartWithCatalog(cart.map((line) => line.productId));
+    if (!catalog) return null;
+    const unavailable = new Set(
+      cart
+        .filter((line) => {
+          const product = catalog.get(line.productId);
+          return !product || (product.stock_quantity ?? 1) <= 0;
+        })
+        .map((line) => line.productId),
+    );
+    if (unavailable.size) {
+      setCart((current) => current.filter((line) => !unavailable.has(line.productId)));
+    }
+    return unavailable.size;
+  }, [cart]);
 
   const toggleWishlist = useCallback((productId: number) => {
     setWishlist((current) =>
@@ -190,6 +240,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         setCart([]);
         setCouponCode("");
       },
+      removeUnavailableItems,
       setCouponCode,
     }),
     [
@@ -197,6 +248,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       cart,
       couponCode,
       removeFromCart,
+      removeUnavailableItems,
       setQuantity,
       toggleWishlist,
       wishlist,
