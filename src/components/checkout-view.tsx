@@ -356,7 +356,7 @@ export function CheckoutView() {
             </div>
           ))}
         </div>
-        <div className="checkoutTotals"><CouponTotals subtotal={subtotal} preview={preview} /><div><span>Insured shipping</span><b>Free</b></div><div className="summaryTotal"><span>Estimated total</span><b>{formatINR(couponTotal(subtotal, preview))}</b></div></div>
+        <div className="checkoutTotals"><CouponTotals subtotal={subtotal} preview={preview} checking={checking} /><div><span>Insured shipping</span><b>Free</b></div><div className="summaryTotal"><span>Estimated total</span><b>{checking ? "Checking coupon…" : formatINR(couponTotal(subtotal, preview))}</b></div></div>
         <button className="button buttonDark checkoutButton" disabled={loading} type="submit">{loading ? "Please wait…" : "Place secure order"}</button>
         <p className="priceFootnote">Final price is recalculated securely using the latest configured metal rate.</p>
         {notice && <p className="integrationNotice" role="alert">{notice}</p>}
