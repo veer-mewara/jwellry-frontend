@@ -4,7 +4,7 @@ import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { ACCOUNT_TOKEN_KEY } from "@/lib/account";
 import { formatINR } from "@/lib/pricing";
-import { orderStatusLabel } from "@/lib/orders";
+import { orderStatusLabel, saveOrderEmail } from "@/lib/orders";
 
 interface AccountData {
   name: string;
@@ -61,6 +61,8 @@ export function AccountView() {
       return;
     }
     const payload = (await response.json()) as { data: AccountData };
+    // Order pages read the email from this map, so links need no ?email=.
+    payload.data.orders.forEach((order) => saveOrderEmail(order.uuid, order.email || payload.data.email));
     setAccount(payload.data);
   }, []);
 
@@ -185,7 +187,7 @@ export function AccountView() {
         <div className="accountDashboardHead"><div><span className="eyebrow">Customer account</span><h1>Hello, {account.name}</h1><p>{account.email}</p></div><button className="button buttonOutline" onClick={() => void logout()}>Sign out</button></div>
         {notice && <p className="integrationNotice" role="status">{notice}</p>}
         <div className="accountDashboardGrid">
-          <section className="accountPanel" id="orders"><h2>Order history</h2>{account.orders.length ? <div className="accountOrders">{account.orders.map((order) => <Link key={order.id} href={`/orders/${order.uuid}?email=${encodeURIComponent(order.email || account.email)}`}><span><b>{order.order_number}</b><small>{new Date(order.created_at).toLocaleDateString("en-IN")}</small></span><span><b>{formatINR(Number(order.grand_total))}</b><small>{orderStatusLabel(order.status)}</small></span></Link>)}</div> : <p className="accountEmpty">Your orders will appear here after checkout.</p>}</section>
+          <section className="accountPanel" id="orders"><h2>Order history</h2>{account.orders.length ? <div className="accountOrders">{account.orders.map((order) => <Link key={order.id} href={`/orders/${order.uuid}`} onClick={() => saveOrderEmail(order.uuid, order.email || account.email)}><span><b>{order.order_number}</b><small>{new Date(order.created_at).toLocaleDateString("en-IN")}</small></span><span><b>{formatINR(Number(order.grand_total))}</b><small>{orderStatusLabel(order.status)}</small></span></Link>)}</div> : <p className="accountEmpty">Your orders will appear here after checkout.</p>}</section>
           <section className="accountPanel"><h2>Saved addresses</h2>{account.addresses.map((address) => <address key={address.id}><b>{address.label}{address.is_default ? " · Default" : ""}</b><span>{address.first_name} {address.last_name}<br />{address.line_1}<br />{address.city}, {address.state} {address.postal_code}</span><button type="button" disabled={loading} onClick={() => void deleteAddress(address.id)}>Remove</button></address>)}<details className="addressCreator"><summary>Add a new address</summary><form className="formGrid" onSubmit={addAddress}><label>Label<input name="label" defaultValue="Home" /></label><label>First name<input required name="first_name" /></label><label>Last name<input name="last_name" /></label><label>Phone<input required name="phone" /></label><label className="fullField">Address<input required name="line_1" /></label><label>City<input required name="city" /></label><label>State<input required name="state" /></label><label>PIN code<input required pattern="[1-9][0-9]{5}" name="postal_code" /></label><label className="checkField"><input type="checkbox" name="is_default" value="1" /> Make default</label><button disabled={loading} className="button buttonDark" type="submit">Save address</button></form></details></section>
         </div>
       </div>
