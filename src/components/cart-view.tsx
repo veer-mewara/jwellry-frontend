@@ -51,9 +51,9 @@ export function CartView() {
       </div>
       <aside className="orderSummary">
         <h2>Order summary</h2>
-        <CouponTotals subtotal={subtotal} preview={preview} />
+        <CouponTotals subtotal={subtotal} preview={preview} checking={checking} />
         <div><span>Shipping</span><b>Calculated at checkout</b></div>
-        <div className="summaryTotal"><span>Estimated total</span><b>{formatINR(couponTotal(subtotal, preview))}</b></div>
+        <div className="summaryTotal"><span>Estimated total</span><b>{checking ? "Checking coupon…" : formatINR(couponTotal(subtotal, preview))}</b></div>
         <form className="couponForm" onSubmit={(event) => {
           event.preventDefault();
           setCouponCode(coupon.trim().toUpperCase());
@@ -61,7 +61,7 @@ export function CartView() {
           <label htmlFor="coupon">Coupon code</label>
           <div><input id="coupon" value={coupon} onChange={(event) => setCoupon(event.target.value)} placeholder="Enter code" /><button type="submit">Apply</button></div>
           {couponCode && <small className="couponStatus" role="status">
-            {checking && !preview && !error ? "Checking coupon…" : null}
+            {checking && !error ? "Checking coupon…" : null}
             {preview?.valid && <><strong>{couponCode}</strong> applied.</>}
             {preview && !preview.valid && (preview.message || "This coupon is invalid, expired or not applicable to this order.")}
             {error}
