@@ -71,7 +71,7 @@ export function CartView() {
           </small>}
         </form>
         <Link className="button buttonDark checkoutButton" href="/checkout">Proceed to secure checkout</Link>
-        <p className="secureNote">Choose cash on delivery or an available online payment method at checkout.</p>
+        <p className="secureNote">Sign in or create an account to check out. Choose cash on delivery or an available online payment method at checkout.</p>
       </aside>
     </div>
   );

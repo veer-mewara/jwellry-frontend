@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { ACCOUNT_TOKEN_KEY } from "@/lib/account";
+import { useRouter } from "next/navigation";
+import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
+import { ACCOUNT_TOKEN_KEY, safeNextPath } from "@/lib/account";
 import { SocialLoginButtons } from "@/components/social-login-buttons";
 import { formatINR } from "@/lib/pricing";
 import { orderStatusLabel, saveOrderEmail } from "@/lib/orders";
@@ -38,8 +39,37 @@ function endpoint(path: string) {
   return base ? `${base}/api${path}` : null;
 }
 
-function responseMessage(payload: { message?: string; errors?: Record<string, string[]> }) {
-  return (payload.errors && Object.values(payload.errors).flat()[0]) || payload.message || "Please try again.";
+interface ApiError {
+  message?: string;
+  errors?: Record<string, string[]>;
+}
+
+const NETWORK_ERROR = "We couldn't reach the store. Check your connection and try again.";
+
+/** fetch + JSON that never surfaces "Failed to fetch" or a JSON parse error to the shopper. */
+async function requestJson<T>(url: string, init: RequestInit): Promise<{ response: Response; payload: T & ApiError }> {
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch {
+    throw new Error(NETWORK_ERROR);
+  }
+  // Error pages from a proxy or a sleeping server are HTML, not JSON.
+  const payload = (await response.json().catch(() => ({}))) as T & ApiError;
+  return { response, payload };
+}
+
+function responseMessage(response: Response, payload: ApiError) {
+  const message = (payload.errors && Object.values(payload.errors).flat()[0]) || payload.message;
+  if (message) return message;
+  return response.status >= 500 ? "The store is having trouble right now. Please try again in a moment." : "Please try again.";
+}
+
+// Mirrors the backend rule: Password::min(8)->letters()->numbers().
+function passwordProblem(password: string) {
+  if (password.length < 8) return "Your password must be at least 8 characters.";
+  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return "Your password must contain both letters and numbers.";
+  return "";
 }
 
 export function AccountView() {
@@ -49,34 +79,59 @@ export function AccountView() {
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [accountLoading, setAccountLoading] = useState(false);
+  const [accountError, setAccountError] = useState("");
+  const router = useRouter();
+  // Where to go after signing in (e.g. back to checkout); read from ?next= on load.
+  const [nextPath, setNextPath] = useState<string | null>(null);
+  const nextPathRef = useRef<string | null>(null);
 
+  /** Throws on failures worth retrying; only a rejected token (401) signs the shopper out. */
   const loadAccount = useCallback(async (currentToken: string) => {
     const url = endpoint("/account");
-    if (!url) return;
-    const response = await fetch(url, {
+    if (!url) throw new Error("Account API URL is not configured.");
+    const { response, payload } = await requestJson<{ data?: AccountData }>(url, {
       headers: { Accept: "application/json", Authorization: `Bearer ${currentToken}` },
     });
-    if (!response.ok) {
+    if (response.status === 401) {
       window.localStorage.removeItem(ACCOUNT_TOKEN_KEY);
       setToken("");
-      return;
+      setAccount(null);
+      setNotice("Your session has ended. Please sign in again.");
+      return false;
     }
-    const payload = (await response.json()) as { data: AccountData };
+    if (!response.ok || !payload.data) throw new Error(responseMessage(response, payload));
+    const data = payload.data;
     // Order pages read the email from this map, so links need no ?email=.
-    payload.data.orders.forEach((order) => saveOrderEmail(order.uuid, order.email || payload.data.email));
-    setAccount(payload.data);
+    data.orders.forEach((order) => saveOrderEmail(order.uuid, order.email || data.email));
+    setAccount(data);
+    return true;
   }, []);
+
+  const openAccount = useCallback(async (currentToken: string) => {
+    setAccountLoading(true);
+    setAccountError("");
+    try {
+      if ((await loadAccount(currentToken)) && nextPathRef.current) router.replace(nextPathRef.current);
+    } catch (error) {
+      setAccountError(error instanceof Error ? error.message : "Your account could not be loaded.");
+    } finally {
+      setAccountLoading(false);
+    }
+  }, [loadAccount, router]);
 
   useEffect(() => {
     const hydration = window.setTimeout(() => {
+      nextPathRef.current = safeNextPath(new URLSearchParams(window.location.search).get("next"));
+      setNextPath(nextPathRef.current);
       const stored = window.localStorage.getItem(ACCOUNT_TOKEN_KEY) || "";
       if (stored) {
         setToken(stored);
-        void loadAccount(stored);
+        void openAccount(stored);
       }
     }, 0);
     return () => window.clearTimeout(hydration);
-  }, [loadAccount]);
+  }, [openAccount]);
 
   async function authenticate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,21 +146,27 @@ export function AccountView() {
     const form = new FormData(event.currentTarget);
     const body = Object.fromEntries(form.entries());
 
+    if (mode === "register") {
+      const password = String(body.password ?? "");
+      const problem = passwordProblem(password)
+        || (password !== String(body.password_confirmation ?? "") ? "The two passwords don't match." : "");
+      if (problem) {
+        setNotice(problem);
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
-      const response = await fetch(url, {
+      const { response, payload } = await requestJson<{ token?: string }>(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(body),
       });
-      const payload = (await response.json()) as {
-        token?: string;
-        message?: string;
-        errors?: Record<string, string[]>;
-      };
-      if (!response.ok || !payload.token) throw new Error(responseMessage(payload));
+      if (!response.ok || !payload.token) throw new Error(responseMessage(response, payload));
       window.localStorage.setItem(ACCOUNT_TOKEN_KEY, payload.token);
       setToken(payload.token);
-      await loadAccount(payload.token);
+      await openAccount(payload.token);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Sign in failed.");
     } finally {
@@ -117,7 +178,7 @@ export function AccountView() {
     // firebase-auth has already stored the token like a normal login.
     setNotice("");
     setToken(newToken);
-    await loadAccount(newToken);
+    await openAccount(newToken);
     // Shown when the server linked an existing account and replaced its password.
     if (accountNotice) setNotice(accountNotice);
   }
@@ -135,7 +196,7 @@ export function AccountView() {
     }
     const form = new FormData(formElement);
     try {
-      const response = await fetch(url, {
+      const { response, payload } = await requestJson(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -144,8 +205,7 @@ export function AccountView() {
         },
         body: JSON.stringify(Object.fromEntries(form.entries())),
       });
-      const payload = (await response.json()) as { message?: string; errors?: Record<string, string[]> };
-      if (!response.ok) throw new Error(responseMessage(payload));
+      if (!response.ok) throw new Error(responseMessage(response, payload));
       formElement.reset();
       await loadAccount(token);
       setNotice("Address saved.");
@@ -164,6 +224,7 @@ export function AccountView() {
     window.localStorage.removeItem(ACCOUNT_TOKEN_KEY);
     setToken("");
     setAccount(null);
+    setAccountError("");
   }
 
   async function deleteAddress(addressId: number) {
@@ -174,14 +235,11 @@ export function AccountView() {
     setLoading(true);
     setNotice("");
     try {
-      const response = await fetch(url, {
+      const { response, payload } = await requestJson(url, {
         method: "DELETE",
         headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
       });
-      if (!response.ok) {
-        const payload = (await response.json()) as { message?: string; errors?: Record<string, string[]> };
-        throw new Error(responseMessage(payload));
-      }
+      if (!response.ok) throw new Error(responseMessage(response, payload));
       await loadAccount(token);
       setNotice("Saved address removed.");
     } catch (error) {
@@ -189,6 +247,10 @@ export function AccountView() {
     } finally {
       setLoading(false);
     }
+  }
+
+  if (account && nextPath) {
+    return <div className="accountDashboard"><p className="accountEmpty" role="status">{nextPath === "/checkout" ? "Taking you to checkout…" : "Signed in. Taking you back…"}</p></div>;
   }
 
   if (account) {
@@ -200,6 +262,27 @@ export function AccountView() {
           <section className="accountPanel" id="orders"><h2>Order history</h2>{account.orders.length ? <div className="accountOrders">{account.orders.map((order) => <Link key={order.id} href={`/orders/${order.uuid}`} onClick={() => saveOrderEmail(order.uuid, order.email || account.email)}><span><b>{order.order_number}</b><small>{new Date(order.created_at).toLocaleDateString("en-IN")}</small></span><span><b>{formatINR(Number(order.grand_total))}</b><small>{orderStatusLabel(order.status)}</small></span></Link>)}</div> : <p className="accountEmpty">Your orders will appear here after checkout.</p>}</section>
           <section className="accountPanel"><h2>Saved addresses</h2>{account.addresses.map((address) => <address key={address.id}><b>{address.label}{address.is_default ? " · Default" : ""}</b><span>{address.first_name} {address.last_name}<br />{address.line_1}<br />{address.city}, {address.state} {address.postal_code}</span><button type="button" disabled={loading} onClick={() => void deleteAddress(address.id)}>Remove</button></address>)}<details className="addressCreator"><summary>Add a new address</summary><form className="formGrid" onSubmit={addAddress}><label>Label<input name="label" defaultValue="Home" /></label><label>First name<input required name="first_name" /></label><label>Last name<input name="last_name" /></label><label>Phone<input required name="phone" /></label><label className="fullField">Address<input required name="line_1" /></label><label>City<input required name="city" /></label><label>State<input required name="state" /></label><label>PIN code<input required pattern="[1-9][0-9]{5}" name="postal_code" /></label><label className="checkField"><input type="checkbox" name="is_default" value="1" /> Make default</label><button disabled={loading} className="button buttonDark" type="submit">Save address</button></form></details></section>
         </div>
+      </div>
+    );
+  }
+
+  // Signed in but the account isn't on screen yet: don't flash the sign-in form.
+  if (token) {
+    return (
+      <div className="accountDashboard">
+        {accountError ? (
+          <>
+            <p className="integrationNotice" role="alert">{accountError}</p>
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <button className="button buttonDark" type="button" disabled={accountLoading} onClick={() => void openAccount(token)}>
+                {accountLoading ? "Trying again…" : "Try again"}
+              </button>
+              <button className="button buttonOutline" type="button" onClick={() => void logout()}>Sign out</button>
+            </div>
+          </>
+        ) : (
+          <p className="accountEmpty" role="status">Loading your account…</p>
+        )}
       </div>
     );
   }
@@ -339,6 +422,11 @@ export function AccountView() {
         <div className="premiumAuthImage"></div>
         <div className="premiumAuthContent">
           <h2>{mode === "login" ? "Sign in" : "Create an account"}</h2>
+          {nextPath === "/checkout" && (
+            <p className="integrationNotice" role="status" style={{ marginTop: "-12px", marginBottom: "24px" }}>
+              Sign in or create an account to place your order. Your bag is saved.
+            </p>
+          )}
           
           {mode === "register" && (
             <div className="authBenefitsList">
@@ -367,11 +455,16 @@ export function AccountView() {
             <div className="premiumInputWrap">
               <label>Password</label>
               <div style={{ position: "relative" }}>
-                <input required minLength={8} name="password" type={showPassword ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="••••••••" style={{ paddingRight: "40px", width: "100%" }} />
+                <input required minLength={8} name="password" aria-describedby={mode === "register" ? "password-hint" : undefined} type={showPassword ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="••••••••" style={{ paddingRight: "40px", width: "100%" }} />
                 <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "15px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#666", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }} aria-label={showPassword ? "Hide password" : "Show password"}>
                   <i className={showPassword ? "ri-eye-off-line" : "ri-eye-line"} style={{ fontSize: "18px" }}></i>
                 </button>
               </div>
+              {mode === "register" && (
+                <small id="password-hint" style={{ display: "block", marginTop: "6px", color: "#666", fontSize: "13px" }}>
+                  At least 8 characters, with letters and numbers.
+                </small>
+              )}
             </div>
             {mode === "register" && (
               <div className="premiumInputWrap">
