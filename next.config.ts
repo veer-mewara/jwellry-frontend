@@ -11,10 +11,26 @@ const nextConfig: NextConfig = {
     dangerouslyAllowLocalIP: process.env.NODE_ENV !== "production",
     remotePatterns: [
       {
-        protocol: apiProtocol,
+        protocol: "https",
         hostname: apiOrigin.hostname,
         port: apiOrigin.port,
         pathname: "/media/**",
+      },
+      {
+        protocol: "http",
+        hostname: apiOrigin.hostname,
+        port: apiOrigin.port,
+        pathname: "/media/**",
+      },
+      {
+        protocol: "https",
+        hostname: "jwellry-backend.onrender.com",
+        pathname: "/**",
+      },
+      {
+        protocol: "http",
+        hostname: "jwellry-backend.onrender.com",
+        pathname: "/**",
       },
     ],
   },
