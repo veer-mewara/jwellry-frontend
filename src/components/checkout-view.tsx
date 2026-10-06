@@ -7,7 +7,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useStore } from "@/components/store-provider";
 import { useSiteSettings } from "@/components/site-settings-provider";
 import { formatINR } from "@/lib/pricing";
-import { ACCOUNT_TOKEN_KEY } from "@/lib/account";
+import { ACCOUNT_TOKEN_KEY, CHECKOUT_SIGN_IN_PATH } from "@/lib/account";
 import { saveOrderEmail } from "@/lib/orders";
 import { useCouponPreview } from "@/lib/coupon-preview";
 import { CouponTotals, couponTotal } from "@/components/coupon-totals";
@@ -16,6 +16,7 @@ interface OrderResult {
   data: {
     uuid: string;
     order_number: string;
+    email: string;
     status: string;
     payment_status: string;
     grand_total: number;
@@ -118,6 +119,14 @@ export function CheckoutView() {
   }
   const checkoutFormRef = useRef<HTMLFormElement>(null);
   const [savedAddressNotice, setSavedAddressNotice] = useState("");
+  // Orders need an account: null until the stored token has been checked.
+  const [customerEmail, setCustomerEmail] = useState<string | null>(null);
+  const [prefill, setPrefill] = useState<Record<string, string | null | undefined> | null>(null);
+
+  function signInAgain() {
+    window.localStorage.removeItem(ACCOUNT_TOKEN_KEY);
+    router.replace(CHECKOUT_SIGN_IN_PATH);
+  }
 
   useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
@@ -141,19 +150,30 @@ export function CheckoutView() {
   useEffect(() => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
     const customerToken = window.localStorage.getItem(ACCOUNT_TOKEN_KEY);
-    if (!apiBase || !customerToken || !cart.length) return;
+    if (!customerToken) {
+      router.replace(CHECKOUT_SIGN_IN_PATH);
+      return;
+    }
+    if (!apiBase) return;
 
     const controller = new AbortController();
     void fetch(`${apiBase}/api/account`, {
       headers: { Accept: "application/json", Authorization: `Bearer ${customerToken}` },
       signal: controller.signal,
     })
-      .then((response) => response.ok ? response.json() : Promise.reject())
-      .then((payload: AccountPayload) => {
+      .then((response) => {
+        if (response.status === 401) {
+          window.localStorage.removeItem(ACCOUNT_TOKEN_KEY);
+          router.replace(CHECKOUT_SIGN_IN_PATH);
+          return null;
+        }
+        return response.ok ? response.json() as Promise<AccountPayload> : Promise.reject();
+      })
+      .then((payload) => {
+        if (!payload) return;
         const address = payload.data.addresses.find((item) => item.is_default)
           || payload.data.addresses[0];
-        const fields: Record<string, string | undefined | null> = {
-          email: payload.data.email,
+        setPrefill({
           first_name: address?.first_name,
           last_name: address?.last_name,
           phone: address?.phone,
@@ -161,20 +181,28 @@ export function CheckoutView() {
           city: address?.city,
           state: address?.state,
           postcode: address?.postal_code,
-        };
-
-        Object.entries(fields).forEach(([name, value]) => {
-          const field = checkoutFormRef.current?.elements.namedItem(name);
-          if (field instanceof HTMLInputElement && !field.value && value) {
-            field.value = value;
-          }
         });
         if (address) setSavedAddressNotice("Your saved default address has been added below.");
+        setCustomerEmail(payload.data.email);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        // Account details are a convenience; the order request itself proves the sign-in.
+        if (!controller.signal.aborted) setCustomerEmail("");
+      });
 
     return () => controller.abort();
-  }, [cart.length]);
+  }, [router]);
+
+  // The form only renders once the account is known and the bag has loaded, so fill it afterwards.
+  useEffect(() => {
+    if (!prefill || !checkoutFormRef.current) return;
+    Object.entries(prefill).forEach(([name, value]) => {
+      const field = checkoutFormRef.current?.elements.namedItem(name);
+      if (field instanceof HTMLInputElement && !field.value && value) {
+        field.value = value;
+      }
+    });
+  }, [prefill, customerEmail, cart.length]);
 
   function applyCoupon() {
     const code = couponDraft.trim().toUpperCase();
@@ -234,8 +262,8 @@ export function CheckoutView() {
     }
 
     const form = new FormData(event.currentTarget);
+    // No email: the server uses the signed-in account's.
     const payload = {
-      email: String(form.get("email") || ""),
       phone: String(form.get("phone") || ""),
       shipping: {
         first_name: String(form.get("first_name") || ""),
@@ -265,6 +293,11 @@ export function CheckoutView() {
         },
         body: JSON.stringify(payload),
       });
+      if (response.status === 401) {
+        // Signed out elsewhere or the session ended; the bag stays saved.
+        signInAgain();
+        return;
+      }
       const result = (await response.json()) as OrderResult;
       if (!response.ok) {
         const message = apiMessage(result);
@@ -274,13 +307,14 @@ export function CheckoutView() {
         throw new Error(message);
       }
 
+      const orderEmail = result.data.email;
       if (result.payment.method === "cod") {
-        finishOrder(result.data.uuid, payload.email);
+        finishOrder(result.data.uuid, orderEmail);
         return;
       }
 
       // Remember the email now so the order stays reachable if payment verification fails.
-      saveOrderEmail(result.data.uuid, payload.email);
+      saveOrderEmail(result.data.uuid, orderEmail);
       setPendingOrderUuid(result.data.uuid);
 
       if (!(await loadRazorpay()) || !window.Razorpay) {
@@ -294,10 +328,10 @@ export function CheckoutView() {
         name: storeName,
         description: `Order ${result.data.order_number}`,
         order_id: result.payment.razorpay_order_id,
-        prefill: { email: payload.email, contact: payload.phone },
+        prefill: { email: orderEmail, contact: payload.phone },
         theme: { color: "#201611" },
         handler: (payment: RazorpayResponse) => {
-          void verifyPayment(apiBase, result, payload.email, payment).catch((error: unknown) => {
+          void verifyPayment(apiBase, result, orderEmail, payment).catch((error: unknown) => {
             setNotice(error instanceof Error ? error.message : "Payment verification failed.");
             setLoading(false);
           });
@@ -316,6 +350,10 @@ export function CheckoutView() {
     }
   }
 
+  if (customerEmail === null) {
+    return <div className="emptyState cartEmpty"><p role="status">Checking your account…</p></div>;
+  }
+
   if (!cart.length) {
     return <div className="emptyState cartEmpty"><h2>Your bag is empty.</h2>{notice && <p className="integrationNotice" role="status">{notice}</p>}{pendingOrderUuid && <p className="integrationNotice"><Link href={`/orders/${encodeURIComponent(pendingOrderUuid)}`}>View your order</Link></p>}<Link href="/shop" className="button buttonDark">Return to shop</Link></div>;
   }
@@ -324,9 +362,9 @@ export function CheckoutView() {
     <form className="checkoutGrid" onSubmit={submit} ref={checkoutFormRef}>
       <div className="checkoutForm">
         <section className="formSection">
-          <div className="formSectionHead"><span>01</span><div><h2>Contact</h2><p>We’ll send order updates here.</p></div></div>
+          <div className="formSectionHead"><span>01</span><div><h2>Contact</h2><p>We’ll send order updates to your account email.</p></div></div>
           <div className="formGrid">
-            <label className="fullField">Email address<input required type="email" name="email" autoComplete="email" /></label>
+            {customerEmail && <label className="fullField">Email address<input type="email" value={customerEmail} readOnly aria-readonly="true" title="Order updates go to your account email." /></label>}
             <label>First name<input required name="first_name" autoComplete="given-name" /></label>
             <label>Last name<input name="last_name" autoComplete="family-name" /></label>
             <label className="fullField">Mobile number<input required type="tel" name="phone" minLength={8} maxLength={20} autoComplete="tel" /></label>
