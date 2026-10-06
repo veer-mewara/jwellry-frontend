@@ -1469,7 +1469,7 @@ img {
 }
 
 .removeButton,
-.accountPage button[type="button"]:not(.button) {
+.accountPanel address button {
   background: transparent;
   border: 0;
   text-decoration: underline;
