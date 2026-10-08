@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { ProductCard } from "@/components/product-card";
+import { ShopFilterForm } from "@/components/shop-filter-form";
 import { getProductPrice } from "@/lib/pricing";
 import type { Metal, Purity } from "@/types/commerce";
 import { getBanners, getCatalogResult } from "@/lib/catalog-api";
@@ -146,7 +147,7 @@ export default async function ShopPage({
       </section>}
       <div className="container shopLayout">
         <aside className="filters">
-          <form action="/shop">
+          <ShopFilterForm>
             {onlyNew && <input type="hidden" name="new" value="true" />}
             <div className="filterGroup">
               <label htmlFor="search">Search</label>
@@ -221,7 +222,7 @@ export default async function ShopPage({
             </label>
             <button className="button buttonDark filterSubmit" type="submit">Apply filters</button>
             <Link className="clearFilters" href="/shop">Clear all</Link>
-          </form>
+          </ShopFilterForm>
         </aside>
         <section className="shopResults">
           <div className="resultsBar">

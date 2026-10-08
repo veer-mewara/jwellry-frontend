@@ -1757,10 +1757,20 @@ img {
 
 .integrationNotice {
   margin-top: 13px;
-  padding: 11px;
-  color: #6c4b2b;
-  background: #f4e7d4;
-  font-size: 10px;
+  padding: 14px 18px;
+  color: #7a2924;
+  background: #f7dfdc;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: 1px solid #e8b9b4;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.premium-toast {
+  border: 1px solid #3a2920 !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.5) !important;
 }
 
 .customHero {
