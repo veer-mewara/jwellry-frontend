@@ -37,6 +37,27 @@ export function Index2ProductTile({ product }: { product: Product }) {
     addToCart(product);
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1300);
+    import("sweetalert2").then(({ default: Swal }) => {
+      Swal.fire({
+        toast: true,
+        position: 'bottom',
+        icon: 'success',
+        title: 'Added to your bag!',
+        showConfirmButton: false,
+        timer: 3000,
+        timerProgressBar: true,
+        background: '#201611',
+        color: '#ded4ca',
+        iconColor: '#a87932',
+        customClass: {
+          popup: 'premium-toast'
+        },
+        didOpen: (toast) => {
+          toast.onmouseenter = Swal.stopTimer;
+          toast.onmouseleave = Swal.resumeTimer;
+        }
+      });
+    });
   }
 
   return (

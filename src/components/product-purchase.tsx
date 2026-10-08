@@ -3,17 +3,35 @@
 import { useState } from "react";
 import type { Product } from "@/types/commerce";
 import { maxQuantityFor, useStore } from "@/components/store-provider";
+import Swal from "sweetalert2";
 
 export function ProductPurchase({ product }: { product: Product }) {
   const { addToCart, toggleWishlist, isWishlisted } = useStore();
   const [quantity, setQuantity] = useState(1);
-  const [message, setMessage] = useState("");
   const wished = isWishlisted(product.id);
   const maxQuantity = maxQuantityFor(product.stock);
 
   function add() {
     addToCart(product, quantity);
-    setMessage("Added to your shopping bag.");
+    Swal.fire({
+      toast: true,
+      position: 'bottom',
+      icon: 'success',
+      title: 'Added to your bag!',
+      showConfirmButton: false,
+      timer: 3000,
+      timerProgressBar: true,
+      background: '#201611',
+      color: '#ded4ca',
+      iconColor: '#a87932',
+      customClass: {
+        popup: 'premium-toast'
+      },
+      didOpen: (toast) => {
+        toast.onmouseenter = Swal.stopTimer;
+        toast.onmouseleave = Swal.resumeTimer;
+      }
+    });
   }
 
   return (
@@ -140,7 +158,6 @@ export function ProductPurchase({ product }: { product: Product }) {
           <i className={wished ? "ri-heart-3-fill" : "ri-heart-3-line"}></i>
         </button>
       </div>
-      {message && <p className="successMessage" style={{ fontSize: '0.9rem', color: '#16a34a', margin: 0 }} role="status">{message}</p>}
     </div>
   );
 }
