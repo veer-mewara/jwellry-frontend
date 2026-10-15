@@ -1,13 +1,14 @@
 import { Index2Home } from "@/components/index2-home";
-import { getBanners, getBlogPosts, getCatalog } from "@/lib/catalog-api";
+import { getBanners, getBlogPosts, getCatalog, getTestimonials } from "@/lib/catalog-api";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  const [catalog, banners, journal] = await Promise.all([
+  const [catalog, banners, journal, testimonials] = await Promise.all([
     getCatalog(),
     getBanners(),
     getBlogPosts(),
+    getTestimonials(),
   ]);
   const categoryMap = new Map<string, { slug: string; name: string; image: string; count: number }>();
 
@@ -32,6 +33,7 @@ export default async function HomePage() {
       newArrivals={catalog.filter((product) => product.newArrival).slice(0, 6)}
       trending={catalog.filter((product) => product.bestSeller).slice(0, 3)}
       journal={journal.slice(0, 2)}
+      testimonials={testimonials}
     />
   );
 }

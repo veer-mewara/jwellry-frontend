@@ -10,6 +10,7 @@ import {
 } from "react";
 import type { CartLine, Product } from "@/types/commerce";
 import { getProductPrice } from "@/lib/pricing";
+import { ACCOUNT_TOKEN_KEY } from "@/lib/account";
 
 const CART_KEY = "sonaro_cart_v1";
 const WISHLIST_KEY = "sonaro_wishlist_v1";
@@ -36,7 +37,7 @@ interface StoreContextValue {
   cartCount: number;
   subtotal: number;
   couponCode: string;
-  addToCart: (product: Product, quantity?: number) => void;
+  addToCart: (product: Product, quantity?: number) => boolean;
   removeFromCart: (productId: number) => void;
   setQuantity: (productId: number, quantity: number) => void;
   toggleWishlist: (productId: number) => void;
@@ -110,27 +111,74 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setCouponCode(readStorage<string>(COUPON_KEY, ""));
       setHydrated(true);
 
-      if (!savedCart.length) return;
+      const customerToken = window.localStorage.getItem(ACCOUNT_TOKEN_KEY);
+      if (customerToken && API_URL) {
+        fetch(`${API_URL}/api/cart`, {
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${customerToken}`,
+          },
+        })
+          .then((res) => (res.ok ? res.json() : null))
+          .then((payload) => {
+            if (payload && Array.isArray(payload.cart) && payload.cart.length > 0) {
+              setCart(
+                payload.cart.map((line: {
+                  productId: number;
+                  slug: string;
+                  name: string;
+                  image: string;
+                  price: number;
+                  purity: CartLine["purity"];
+                  quantity: number;
+                  stock?: number;
+                }) => ({
+                  productId: line.productId,
+                  slug: line.slug,
+                  name: line.name,
+                  image: line.image,
+                  price: line.price,
+                  purity: line.purity,
+                  quantity: clampQuantity(line.quantity, line.stock),
+                  stock: line.stock,
+                }))
+              );
+            } else if (savedCart.length > 0) {
+              fetch(`${API_URL}/api/cart/sync`, {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  Accept: "application/json",
+                  Authorization: `Bearer ${customerToken}`,
+                },
+                body: JSON.stringify({
+                  items: savedCart.map((l) => ({ productId: l.productId, quantity: l.quantity })),
+                }),
+              }).catch(() => undefined);
+            }
+          })
+          .catch(() => undefined);
+      } else if (savedCart.length) {
+        void reconcileCartWithCatalog(savedCart.map((line) => line.productId)).then((catalog) => {
+          if (!catalog) return;
 
-      void reconcileCartWithCatalog(savedCart.map((line) => line.productId)).then((catalog) => {
-        if (!catalog) return;
+          setCart((current) => current.flatMap((line) => {
+            const product = catalog.get(line.productId);
+            if (!product || !product.images[0]?.path) return [];
 
-        setCart((current) => current.flatMap((line) => {
-          const product = catalog.get(line.productId);
-          if (!product || !product.images[0]?.path) return [];
-
-          return [{
-            ...line,
-            slug: product.slug,
-            name: product.name,
-            image: product.images[0].path,
-            price: product.pricing.total,
-            purity: product.purity,
-            stock: product.stock_quantity ?? line.stock,
-            quantity: clampQuantity(line.quantity, product.stock_quantity ?? line.stock),
-          }];
-        }));
-      });
+            return [{
+              ...line,
+              slug: product.slug,
+              name: product.name,
+              image: product.images[0].path,
+              price: product.pricing.total,
+              purity: product.purity,
+              stock: product.stock_quantity ?? line.stock,
+              quantity: clampQuantity(line.quantity, product.stock_quantity ?? line.stock),
+            }];
+          }));
+        });
+      }
     }, 0);
     return () => window.clearTimeout(storageRead);
   }, []);
@@ -149,8 +197,38 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     if (hydrated) window.localStorage.setItem(COUPON_KEY, couponCode);
   }, [couponCode, hydrated]);
 
-  const addToCart = useCallback((product: Product, quantity = 1) => {
+  const addToCart = useCallback((product: Product, quantity = 1): boolean => {
+    const token = typeof window !== "undefined" ? window.localStorage.getItem(ACCOUNT_TOKEN_KEY) : null;
+    if (!token) {
+      import("sweetalert2").then(({ default: Swal }) => {
+        Swal.fire({
+          title: "Login Required",
+          text: "Please sign in or create an account to add items to your shopping bag.",
+          icon: "info",
+          showCancelButton: true,
+          confirmButtonText: "Sign In / Register",
+          cancelButtonText: "Continue Browsing",
+          confirmButtonColor: "#201611",
+          cancelButtonColor: "#7a6a5d",
+          background: "#ffffff",
+          color: "#201611",
+          iconColor: "#a87932",
+          customClass: {
+            popup: "premium-login-modal",
+          },
+        }).then((result) => {
+          if (result.isConfirmed) {
+            const next = window.location.pathname + window.location.search;
+            window.location.href = `/account?next=${encodeURIComponent(next)}`;
+          }
+        });
+      });
+      return false;
+    }
+
     const price = getProductPrice(product).total;
+    const addQty = Math.max(quantity, 1);
+
     setCart((current) => {
       const existing = current.find((line) => line.productId === product.id);
       if (existing) {
@@ -159,7 +237,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
             ? {
                 ...line,
                 stock: product.stock,
-                quantity: clampQuantity(line.quantity + Math.max(quantity, 1), product.stock),
+                quantity: clampQuantity(line.quantity + addQty, product.stock),
               }
             : line,
         );
@@ -173,17 +251,45 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           image: product.images[0],
           price,
           purity: product.purity,
-          quantity: clampQuantity(Math.max(quantity, 1), product.stock),
+          quantity: clampQuantity(addQty, product.stock),
           stock: product.stock,
         },
       ];
     });
+
+    if (API_URL) {
+      fetch(`${API_URL}/api/cart`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          product_id: product.id,
+          quantity: addQty,
+        }),
+      }).catch(() => undefined);
+    }
+
+    return true;
   }, []);
 
   const removeFromCart = useCallback((productId: number) => {
     setCart((current) =>
       current.filter((line) => line.productId !== productId),
     );
+
+    const token = typeof window !== "undefined" ? window.localStorage.getItem(ACCOUNT_TOKEN_KEY) : null;
+    if (token && API_URL) {
+      fetch(`${API_URL}/api/cart/${productId}`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch(() => undefined);
+    }
   }, []);
 
   const setQuantity = useCallback((productId: number, quantity: number) => {
@@ -195,6 +301,35 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           : line,
       ),
     );
+
+    const token = typeof window !== "undefined" ? window.localStorage.getItem(ACCOUNT_TOKEN_KEY) : null;
+    if (token && API_URL) {
+      fetch(`${API_URL}/api/cart/${productId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ quantity }),
+      }).catch(() => undefined);
+    }
+  }, []);
+
+  const clearCart = useCallback(() => {
+    setCart([]);
+    setCouponCode("");
+
+    const token = typeof window !== "undefined" ? window.localStorage.getItem(ACCOUNT_TOKEN_KEY) : null;
+    if (token && API_URL) {
+      fetch(`${API_URL}/api/cart`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      }).catch(() => undefined);
+    }
   }, []);
 
   const removeUnavailableItems = useCallback(async () => {
@@ -237,16 +372,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setQuantity,
       toggleWishlist,
       isWishlisted: (productId) => wishlist.includes(productId),
-      clearCart: () => {
-        setCart([]);
-        setCouponCode("");
-      },
+      clearCart,
       removeUnavailableItems,
       setCouponCode,
     }),
     [
       addToCart,
       cart,
+      clearCart,
       couponCode,
       removeFromCart,
       removeUnavailableItems,

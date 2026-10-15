@@ -4,13 +4,22 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
 import { ACCOUNT_TOKEN_KEY, safeNextPath } from "@/lib/account";
+import { endpoint, passwordProblem, requestJson, responseMessage } from "@/lib/account-api";
 import { SocialLoginButtons } from "@/components/social-login-buttons";
+import { ForgotPasswordForm } from "@/components/forgot-password-form";
+import { EmailVerificationCard } from "@/components/email-verification-card";
 import { formatINR } from "@/lib/pricing";
 import { orderStatusLabel, saveOrderEmail } from "@/lib/orders";
 
 interface AccountData {
   name: string;
   email: string;
+  phone?: string;
+  is_phone_verified?: boolean;
+  phone_verified_at?: string;
+  is_email_verified?: boolean;
+  /** False while WhatsApp is switched off: mobile codes cannot be sent, so no "Verify" prompt. */
+  phone_verification_available?: boolean;
   addresses: Array<{
     id: number;
     label: string;
@@ -31,49 +40,14 @@ interface AccountData {
     payment_status: string;
     grand_total: string;
     created_at: string;
+    /** GST invoice for paid / confirmed orders (issued the first time it is opened). */
+    invoice_url?: string | null;
   }>;
 }
 
-function endpoint(path: string) {
-  const base = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
-  return base ? `${base}/api${path}` : null;
-}
-
-interface ApiError {
-  message?: string;
-  errors?: Record<string, string[]>;
-}
-
-const NETWORK_ERROR = "We couldn't reach the store. Check your connection and try again.";
-
-/** fetch + JSON that never surfaces "Failed to fetch" or a JSON parse error to the shopper. */
-async function requestJson<T>(url: string, init: RequestInit): Promise<{ response: Response; payload: T & ApiError }> {
-  let response: Response;
-  try {
-    response = await fetch(url, init);
-  } catch {
-    throw new Error(NETWORK_ERROR);
-  }
-  // Error pages from a proxy or a sleeping server are HTML, not JSON.
-  const payload = (await response.json().catch(() => ({}))) as T & ApiError;
-  return { response, payload };
-}
-
-function responseMessage(response: Response, payload: ApiError) {
-  const message = (payload.errors && Object.values(payload.errors).flat()[0]) || payload.message;
-  if (message) return message;
-  return response.status >= 500 ? "The store is having trouble right now. Please try again in a moment." : "Please try again.";
-}
-
-// Mirrors the backend rule: Password::min(8)->letters()->numbers().
-function passwordProblem(password: string) {
-  if (password.length < 8) return "Your password must be at least 8 characters.";
-  if (!/[A-Za-z]/.test(password) || !/\d/.test(password)) return "Your password must contain both letters and numbers.";
-  return "";
-}
 
 export function AccountView() {
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [token, setToken] = useState("");
   const [account, setAccount] = useState<AccountData | null>(null);
   const [notice, setNotice] = useState("");
@@ -82,11 +56,19 @@ export function AccountView() {
   const [accountLoading, setAccountLoading] = useState(false);
   const [accountError, setAccountError] = useState("");
   const router = useRouter();
-  // Where to go after signing in (e.g. back to checkout); read from ?next= on load.
+
+  // OTP Verification state
+  const [pendingOtp, setPendingOtp] = useState<{
+    phone: string;
+    otpPreview?: string;
+  } | null>(null);
+  const [otpCode, setOtpCode] = useState("");
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [otpNotice, setOtpNotice] = useState("");
+
   const [nextPath, setNextPath] = useState<string | null>(null);
   const nextPathRef = useRef<string | null>(null);
 
-  /** Throws on failures worth retrying; only a rejected token (401) signs the shopper out. */
   const loadAccount = useCallback(async (currentToken: string) => {
     const url = endpoint("/account");
     if (!url) throw new Error("Account API URL is not configured.");
@@ -102,7 +84,6 @@ export function AccountView() {
     }
     if (!response.ok || !payload.data) throw new Error(responseMessage(response, payload));
     const data = payload.data;
-    // Order pages read the email from this map, so links need no ?email=.
     data.orders.forEach((order) => saveOrderEmail(order.uuid, order.email || data.email));
     setAccount(data);
     return true;
@@ -158,7 +139,13 @@ export function AccountView() {
     }
 
     try {
-      const { response, payload } = await requestJson<{ token?: string }>(url, {
+      const { response, payload } = await requestJson<{
+        token?: string;
+        otp_required?: boolean;
+        phone?: string;
+        otp_preview?: string;
+        data?: AccountData;
+      }>(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
         body: JSON.stringify(body),
@@ -166,7 +153,19 @@ export function AccountView() {
       if (!response.ok || !payload.token) throw new Error(responseMessage(response, payload));
       window.localStorage.setItem(ACCOUNT_TOKEN_KEY, payload.token);
       setToken(payload.token);
-      await openAccount(payload.token);
+
+      if (payload.otp_required) {
+        setPendingOtp({
+          phone: payload.phone || String(body.phone || ""),
+          otpPreview: payload.otp_preview,
+        });
+        if (payload.otp_preview) {
+          setOtpCode(payload.otp_preview);
+        }
+        void loadAccount(payload.token);
+      } else {
+        await openAccount(payload.token);
+      }
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Sign in failed.");
     } finally {
@@ -174,12 +173,90 @@ export function AccountView() {
     }
   }
 
+  async function handleVerifyOtp(event?: FormEvent) {
+    if (event) event.preventDefault();
+    if (!otpCode || otpCode.trim().length !== 6) {
+      setOtpNotice("Please enter the 6-digit verification code.");
+      return;
+    }
+    setOtpLoading(true);
+    setOtpNotice("");
+    const url = endpoint("/account/verify-otp");
+    if (!url) {
+      setOtpNotice("API endpoint is not configured.");
+      setOtpLoading(false);
+      return;
+    }
+
+    try {
+      const { response, payload } = await requestJson<{ message?: string; is_phone_verified?: boolean }>(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ otp_code: otpCode.trim() }),
+      });
+      if (!response.ok) throw new Error(responseMessage(response, payload));
+
+      setPendingOtp(null);
+      setNotice("Mobile number verified successfully!");
+      await openAccount(token);
+    } catch (err) {
+      setOtpNotice(err instanceof Error ? err.message : "Verification failed.");
+    } finally {
+      setOtpLoading(false);
+    }
+  }
+
+  async function handleResendOtp() {
+    setOtpLoading(true);
+    setOtpNotice("");
+    const url = endpoint("/account/resend-otp");
+    if (!url) return;
+
+    try {
+      const { response, payload } = await requestJson<{ message?: string; otp_preview?: string }>(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ phone: pendingOtp?.phone }),
+      });
+      if (!response.ok) throw new Error(responseMessage(response, payload));
+
+      if (pendingOtp) {
+        setPendingOtp({
+          ...pendingOtp,
+          otpPreview: payload.otp_preview || pendingOtp.otpPreview,
+        });
+        if (payload.otp_preview) {
+          setOtpCode(payload.otp_preview);
+        }
+      }
+      setOtpNotice(payload.message || "A new verification code has been sent.");
+    } catch (err) {
+      setOtpNotice(err instanceof Error ? err.message : "Failed to send code.");
+    } finally {
+      setOtpLoading(false);
+    }
+  }
+
+  async function passwordWasReset(newToken: string) {
+    window.localStorage.setItem(ACCOUNT_TOKEN_KEY, newToken);
+    setMode("login");
+    setToken(newToken);
+    await openAccount(newToken);
+    setNotice("Your password has been changed and you are signed in.");
+  }
+
   async function socialSignedIn(newToken: string, accountNotice?: string) {
-    // firebase-auth has already stored the token like a normal login.
     setNotice("");
     setToken(newToken);
     await openAccount(newToken);
-    // Shown when the server linked an existing account and replaced its password.
     if (accountNotice) setNotice(accountNotice);
   }
 
@@ -225,6 +302,7 @@ export function AccountView() {
     setToken("");
     setAccount(null);
     setAccountError("");
+    setPendingOtp(null);
   }
 
   async function deleteAddress(addressId: number) {
@@ -249,18 +327,351 @@ export function AccountView() {
     }
   }
 
+  // Active OTP verification modal screen
+  if (pendingOtp) {
+    return (
+      <div className="premiumAuthContainer" style={{ maxWidth: "600px" }}>
+        <div className="premiumAuthContent" style={{ textAlign: "center", padding: "50px 36px" }}>
+          <div style={{
+            width: "68px",
+            height: "68px",
+            borderRadius: "50%",
+            background: "#faf6f0",
+            border: "1px solid #ebd7bd",
+            color: "#a87932",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            margin: "0 auto 20px",
+            fontSize: "32px",
+          }}>
+            <i className="ri-shield-check-line"></i>
+          </div>
+
+          <h2 style={{ fontSize: "28px", marginBottom: "10px" }}>Verify Your Mobile Number</h2>
+          <p style={{ color: "#666", fontSize: "15px", marginBottom: "24px", lineHeight: "1.5" }}>
+            We have sent a 6-digit verification OTP code to{" "}
+            <strong style={{ color: "#111" }}>+91 {pendingOtp.phone}</strong>.
+          </p>
+
+          {pendingOtp.otpPreview && (
+            <div style={{
+              background: "#fffaf0",
+              border: "1px dashed #d4a373",
+              borderRadius: "8px",
+              padding: "12px 16px",
+              marginBottom: "24px",
+              fontSize: "14px",
+              color: "#7f5539",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              gap: "10px",
+            }}>
+              <span>
+                <strong>Test OTP Code:</strong> {pendingOtp.otpPreview}
+              </span>
+              <button
+                type="button"
+                onClick={() => setOtpCode(pendingOtp.otpPreview || "")}
+                style={{
+                  background: "#7f5539",
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: "5px",
+                  padding: "4px 10px",
+                  fontSize: "12px",
+                  cursor: "pointer",
+                }}
+              >
+                Auto-fill
+              </button>
+            </div>
+          )}
+
+          <form onSubmit={handleVerifyOtp}>
+            <div className="premiumInputWrap" style={{ marginBottom: "20px" }}>
+              <label style={{ letterSpacing: "1.5px", fontSize: "12px", marginBottom: "10px" }}>ENTER 6-DIGIT OTP</label>
+              <input
+                required
+                maxLength={6}
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                placeholder="123456"
+                autoFocus
+                style={{
+                  textAlign: "center",
+                  fontSize: "28px",
+                  letterSpacing: "8px",
+                  fontWeight: "700",
+                  fontFamily: "monospace",
+                  padding: "12px 16px",
+                  background: "#fafafa",
+                  borderColor: "#d4a373",
+                }}
+              />
+            </div>
+
+            <button
+              disabled={otpLoading || otpCode.length !== 6}
+              type="submit"
+              className="premiumBtn"
+              style={{ minHeight: "50px" }}
+            >
+              {otpLoading ? "Verifying…" : "Verify & Continue"}
+            </button>
+          </form>
+
+          {otpNotice && (
+            <p className="integrationNotice" style={{ marginTop: "20px" }} role="status">
+              {otpNotice}
+            </p>
+          )}
+
+          <div style={{ marginTop: "24px", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "14px" }}>
+            <button
+              type="button"
+              disabled={otpLoading}
+              onClick={handleResendOtp}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#a87932",
+                fontWeight: "600",
+                cursor: "pointer",
+                textDecoration: "underline",
+              }}
+            >
+              Resend OTP
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setPendingOtp(null);
+                void openAccount(token);
+              }}
+              style={{
+                background: "none",
+                border: "none",
+                color: "#666",
+                cursor: "pointer",
+              }}
+            >
+              Verify Later
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (account && nextPath) {
-    return <div className="accountDashboard"><p className="accountEmpty" role="status">{nextPath === "/checkout" ? "Taking you to checkout…" : "Signed in. Taking you back…"}</p></div>;
+    return (
+      <div className="accountDashboard">
+        <p className="accountEmpty" role="status">
+          {nextPath === "/checkout" ? "Taking you to checkout…" : "Signed in. Taking you back…"}
+        </p>
+      </div>
+    );
   }
 
   if (account) {
     return (
       <div className="accountDashboard">
-        <div className="accountDashboardHead"><div><span className="eyebrow">Customer account</span><h1>Hello, {account.name}</h1><p>{account.email}</p></div><button className="button buttonOutline" onClick={() => void logout()}>Sign out</button></div>
+        <style>{`
+          .userMetaRow {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 6px;
+          }
+          .phoneBadge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 3px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+          }
+          .phoneBadge.verified {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+          }
+          .phoneBadge.unverified {
+            background: #fff3e0;
+            color: #e65100;
+            border: 1px solid #ffe0b2;
+          }
+          .verifyNowInline {
+            background: #201611;
+            color: #fff;
+            border: none;
+            border-radius: 4px;
+            padding: 2px 8px;
+            font-size: 11px;
+            margin-left: 6px;
+            cursor: pointer;
+          }
+        `}</style>
+        <div className="accountDashboardHead">
+          <div>
+            <span className="eyebrow">Customer account</span>
+            <h1>Hello, {account.name}</h1>
+            <div className="userMetaRow">
+              <span style={{ color: "#666" }}>{account.email}</span>
+              {account.is_email_verified && (
+                <span className="phoneBadge verified" title="Email address is verified">
+                  <i className="ri-checkbox-circle-fill"></i> Verified
+                </span>
+              )}
+              {account.phone && (
+                <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                  <span>·</span>
+                  <span style={{ fontWeight: 500 }}>{account.phone}</span>
+                  {account.is_phone_verified ? (
+                    <span className="phoneBadge verified" title="Mobile number is verified">
+                      <i className="ri-checkbox-circle-fill"></i> Verified
+                    </span>
+                  ) : account.phone_verification_available === false ? null : (
+                    <span className="phoneBadge unverified" title="Mobile number not verified">
+                      <i className="ri-error-warning-fill"></i> Unverified
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingOtp({ phone: account.phone || "" });
+                          void handleResendOtp();
+                        }}
+                        className="verifyNowInline"
+                      >
+                        Verify OTP
+                      </button>
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+          <button className="button buttonOutline" onClick={() => void logout()}>
+            Sign out
+          </button>
+        </div>
+
         {notice && <p className="integrationNotice" role="status">{notice}</p>}
+
+        {account.is_email_verified === false && (
+          <EmailVerificationCard
+            email={account.email}
+            token={token}
+            onVerified={() => {
+              setAccount({ ...account, is_email_verified: true });
+              setNotice("Email address verified.");
+            }}
+          />
+        )}
+
         <div className="accountDashboardGrid">
-          <section className="accountPanel" id="orders"><h2>Order history</h2>{account.orders.length ? <div className="accountOrders">{account.orders.map((order) => <Link key={order.id} href={`/orders/${order.uuid}`} onClick={() => saveOrderEmail(order.uuid, order.email || account.email)}><span><b>{order.order_number}</b><small>{new Date(order.created_at).toLocaleDateString("en-IN")}</small></span><span><b>{formatINR(Number(order.grand_total))}</b><small>{orderStatusLabel(order.status)}</small></span></Link>)}</div> : <p className="accountEmpty">Your orders will appear here after checkout.</p>}</section>
-          <section className="accountPanel"><h2>Saved addresses</h2>{account.addresses.map((address) => <address key={address.id}><b>{address.label}{address.is_default ? " · Default" : ""}</b><span>{address.first_name} {address.last_name}<br />{address.line_1}<br />{address.city}, {address.state} {address.postal_code}</span><button type="button" disabled={loading} onClick={() => void deleteAddress(address.id)}>Remove</button></address>)}<details className="addressCreator"><summary>Add a new address</summary><form className="formGrid" onSubmit={addAddress}><label>Label<input name="label" defaultValue="Home" /></label><label>First name<input required name="first_name" /></label><label>Last name<input name="last_name" /></label><label>Phone<input required name="phone" /></label><label className="fullField">Address<input required name="line_1" /></label><label>City<input required name="city" /></label><label>State<input required name="state" /></label><label>PIN code<input required pattern="[1-9][0-9]{5}" name="postal_code" /></label><label className="checkField"><input type="checkbox" name="is_default" value="1" /> Make default</label><button disabled={loading} className="button buttonDark" type="submit">Save address</button></form></details></section>
+          <section className="accountPanel" id="orders">
+            <h2>Order history</h2>
+            {account.orders.length ? (
+              <div className="accountOrders">
+                {account.orders.map((order) => (
+                  <div key={order.id} className="accountOrderItem">
+                    <Link
+                      className="accountOrderMain"
+                      href={`/orders/${order.uuid}`}
+                      onClick={() => saveOrderEmail(order.uuid, order.email || account.email)}
+                    >
+                      <span>
+                        <b>{order.order_number}</b>
+                        <small>{new Date(order.created_at).toLocaleDateString("en-IN")}</small>
+                      </span>
+                      <span>
+                        <b>{formatINR(Number(order.grand_total))}</b>
+                        <small>{orderStatusLabel(order.status)}</small>
+                      </span>
+                    </Link>
+                    {order.invoice_url && (
+                      <a className="accountOrderInvoice" href={order.invoice_url} target="_blank" rel="noopener noreferrer">
+                        <i className="ri-file-text-line" aria-hidden="true" /> Download GST invoice
+                      </a>
+                    )}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="accountEmpty">Your orders will appear here after checkout.</p>
+            )}
+          </section>
+
+          <section className="accountPanel">
+            <h2>Saved addresses</h2>
+            {account.addresses.map((address) => (
+              <address key={address.id}>
+                <b>
+                  {address.label}
+                  {address.is_default ? " · Default" : ""}
+                </b>
+                <span>
+                  {address.first_name} {address.last_name}
+                  <br />
+                  {address.line_1}
+                  <br />
+                  {address.city}, {address.state} {address.postal_code}
+                </span>
+                <button type="button" disabled={loading} onClick={() => void deleteAddress(address.id)}>
+                  Remove
+                </button>
+              </address>
+            ))}
+
+            <details className="addressCreator">
+              <summary>Add a new address</summary>
+              <form className="formGrid" onSubmit={addAddress}>
+                <label>
+                  Label
+                  <input name="label" defaultValue="Home" />
+                </label>
+                <label>
+                  First name
+                  <input required name="first_name" />
+                </label>
+                <label>
+                  Last name
+                  <input name="last_name" />
+                </label>
+                <label>
+                  Phone
+                  <input required name="phone" />
+                </label>
+                <label className="fullField">
+                  Address
+                  <input required name="line_1" />
+                </label>
+                <label>
+                  City
+                  <input required name="city" />
+                </label>
+                <label>
+                  State
+                  <input required name="state" />
+                </label>
+                <label>
+                  PIN code
+                  <input required pattern="[1-9][0-9]{5}" name="postal_code" />
+                </label>
+                <label className="checkField">
+                  <input type="checkbox" name="is_default" value="1" /> Make default
+                </label>
+                <button disabled={loading} className="button buttonDark" type="submit">
+                  Save address
+                </button>
+              </form>
+            </details>
+          </section>
         </div>
       </div>
     );
@@ -274,10 +685,17 @@ export function AccountView() {
           <>
             <p className="integrationNotice" role="alert">{accountError}</p>
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-              <button className="button buttonDark" type="button" disabled={accountLoading} onClick={() => void openAccount(token)}>
+              <button
+                className="button buttonDark"
+                type="button"
+                disabled={accountLoading}
+                onClick={() => void openAccount(token)}
+              >
                 {accountLoading ? "Trying again…" : "Try again"}
               </button>
-              <button className="button buttonOutline" type="button" onClick={() => void logout()}>Sign out</button>
+              <button className="button buttonOutline" type="button" onClick={() => void logout()}>
+                Sign out
+              </button>
             </div>
           </>
         ) : (
@@ -418,22 +836,33 @@ export function AccountView() {
           font-size: 18px;
         }
       `}</style>
+
       <div className="premiumAuthContainer">
         <div className="premiumAuthImage"></div>
         <div className="premiumAuthContent">
+          {mode === "forgot" ? (
+            <ForgotPasswordForm
+              onDone={(newToken) => void passwordWasReset(newToken)}
+              onBack={() => { setMode("login"); setNotice(""); }}
+            />
+          ) : (
+          <>
           <h2>{mode === "login" ? "Sign in" : "Create an account"}</h2>
-          {nextPath === "/checkout" && (
+          {nextPath && (
             <p className="integrationNotice" role="status" style={{ marginTop: "-12px", marginBottom: "24px" }}>
-              Sign in or create an account to place your order. Your bag is saved.
+              {nextPath === "/checkout"
+                ? "Sign in or create an account to place your order. Your bag is saved."
+                : "Please sign in or create an account to continue."}
             </p>
           )}
-          
+
           {mode === "register" && (
             <div className="authBenefitsList">
               <h3>Unlock Exclusive Benefits</h3>
               <ul>
                 <li><i className="ri-truck-line"></i> Faster checkout process</li>
                 <li><i className="ri-history-line"></i> Track your order history</li>
+                <li><i className="ri-shield-check-line"></i> Secure, verified account</li>
                 <li><i className="ri-heart-3-line"></i> Save your favourite pieces</li>
               </ul>
             </div>
@@ -443,20 +872,63 @@ export function AccountView() {
 
           <form onSubmit={authenticate}>
             {mode === "register" && (
-              <div className="premiumInputWrap">
-                <label>Full Name</label>
-                <input required name="name" autoComplete="name" placeholder="E.g. Jane Doe" />
-              </div>
+              <>
+                <div className="premiumInputWrap">
+                  <label>Full Name</label>
+                  <input required name="name" autoComplete="name" placeholder="E.g. Jane Doe" />
+                </div>
+                <div className="premiumInputWrap">
+                  <label>Mobile Number</label>
+                  <input
+                    required
+                    name="phone"
+                    type="tel"
+                    autoComplete="tel"
+                    placeholder="E.g. 9876543210"
+                    pattern="[0-9]{10,15}"
+                    title="Please enter a valid 10-digit mobile number"
+                  />
+                </div>
+              </>
             )}
+
             <div className="premiumInputWrap">
               <label>Email Address</label>
               <input required name="email" type="email" autoComplete="email" placeholder="jane@example.com" />
             </div>
+
             <div className="premiumInputWrap">
               <label>Password</label>
               <div style={{ position: "relative" }}>
-                <input required minLength={8} name="password" aria-describedby={mode === "register" ? "password-hint" : undefined} type={showPassword ? "text" : "password"} autoComplete={mode === "login" ? "current-password" : "new-password"} placeholder="••••••••" style={{ paddingRight: "40px", width: "100%" }} />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "15px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#666", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }} aria-label={showPassword ? "Hide password" : "Show password"}>
+                <input
+                  required
+                  minLength={8}
+                  name="password"
+                  aria-describedby={mode === "register" ? "password-hint" : undefined}
+                  type={showPassword ? "text" : "password"}
+                  autoComplete={mode === "login" ? "current-password" : "new-password"}
+                  placeholder="••••••••"
+                  style={{ paddingRight: "40px", width: "100%" }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute",
+                    right: "15px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    color: "#666",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 0,
+                  }}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
                   <i className={showPassword ? "ri-eye-off-line" : "ri-eye-line"} style={{ fontSize: "18px" }}></i>
                 </button>
               </div>
@@ -465,31 +937,76 @@ export function AccountView() {
                   At least 8 characters, with letters and numbers.
                 </small>
               )}
+              {mode === "login" && (
+                <button
+                  type="button"
+                  onClick={() => { setMode("forgot"); setNotice(""); }}
+                  style={{ display: "block", marginTop: "8px", marginLeft: "auto", background: "none", border: "none", padding: 0, color: "#a87932", fontSize: "14px", fontWeight: 600, cursor: "pointer", textDecoration: "underline" }}
+                >
+                  Forgot password?
+                </button>
+              )}
             </div>
+
             {mode === "register" && (
               <div className="premiumInputWrap">
                 <label>Confirm Password</label>
                 <div style={{ position: "relative" }}>
-                  <input required minLength={8} name="password_confirmation" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="••••••••" style={{ paddingRight: "40px", width: "100%" }} />
-                  <button type="button" onClick={() => setShowPassword(!showPassword)} style={{ position: "absolute", right: "15px", top: "50%", transform: "translateY(-50%)", background: "none", border: "none", cursor: "pointer", color: "#666", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }} aria-label={showPassword ? "Hide password" : "Show password"}>
+                  <input
+                    required
+                    minLength={8}
+                    name="password_confirmation"
+                    type={showPassword ? "text" : "password"}
+                    autoComplete="new-password"
+                    placeholder="••••••••"
+                    style={{ paddingRight: "40px", width: "100%" }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "15px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      color: "#666",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 0,
+                    }}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
                     <i className={showPassword ? "ri-eye-off-line" : "ri-eye-line"} style={{ fontSize: "18px" }}></i>
                   </button>
                 </div>
               </div>
             )}
+
             <button disabled={loading} type="submit" className="premiumBtn">
               {loading ? "Please wait…" : mode === "login" ? "Sign In" : "Create Account"}
             </button>
           </form>
-          
-          {notice && <p className="integrationNotice" style={{ marginTop: '20px', textAlign: 'center' }} role="alert">{notice}</p>}
+
+          {notice && <p className="integrationNotice" style={{ marginTop: "20px", textAlign: "center" }} role="alert">{notice}</p>}
 
           <div className="premiumSwitch">
             {mode === "login" ? "Don't have an account?" : "Already have an account?"}
-            <button type="button" onClick={() => { setMode(mode === "login" ? "register" : "login"); setNotice(""); }}>
+            <button
+              type="button"
+              onClick={() => {
+                setMode(mode === "login" ? "register" : "login");
+                setNotice("");
+              }}
+            >
               {mode === "login" ? "Create one now" : "Sign in"}
             </button>
           </div>
+          </>
+          )}
         </div>
       </div>
     </>

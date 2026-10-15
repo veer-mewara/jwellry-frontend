@@ -5,7 +5,7 @@ import Link from "next/link";
 import { FormEvent, useEffect, useState, Suspense } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import type { Product } from "@/types/commerce";
-import type { StorefrontBanner, StorefrontBlogPost } from "@/lib/catalog-api";
+import type { StorefrontBanner, StorefrontBlogPost, StorefrontTestimonial } from "@/lib/catalog-api";
 import { formatINR, getProductPrice } from "@/lib/pricing";
 import { useSiteSettings } from "@/components/site-settings-provider";
 import { useStore } from "@/components/store-provider";
@@ -24,6 +24,84 @@ interface Index2HomeProps {
   newArrivals: Product[];
   trending: Product[];
   journal: StorefrontBlogPost[];
+  testimonials: StorefrontTestimonial[];
+}
+
+/** Stars from approved reviews only; nothing until a product has its first approved review. */
+export function ProductRating({ rating }: { rating?: Product["rating"] }) {
+  if (!rating?.count || rating.average === null) return null;
+  return (
+    <div className="productRatingRow" title={`${rating.average} out of 5 from ${rating.count} review${rating.count === 1 ? "" : "s"}`}>
+      <div className="cs_rating" aria-label={`Rated ${rating.average} out of 5`}>
+        <div className="cs_rating_percentage" style={{ width: `${(rating.average / 5) * 100}%` }} />
+      </div>
+      <span>({rating.count})</span>
+    </div>
+  );
+}
+
+const FALLBACK_TESTIMONIAL: StorefrontTestimonial = {
+  id: 0,
+  name: "A valued customer",
+  location: null,
+  body: "The craftsmanship is beautiful and the entire order experience felt considered from start to finish. My piece arrived exactly as expected and is already a treasured favourite.",
+  rating: null,
+  photoPath: null,
+};
+
+/** "What Our Customers Say": active testimonials from the admin, one at a time with arrows and dots. */
+function TestimonialsSection({ testimonials }: { testimonials: StorefrontTestimonial[] }) {
+  const items = testimonials.length ? testimonials : [FALLBACK_TESTIMONIAL];
+  const [index, setIndex] = useState(0);
+  const current = items[index % items.length];
+  const go = (step: number) => setIndex((value) => (value + step + items.length) % items.length);
+
+  useEffect(() => {
+    if (items.length < 2) return;
+    const timer = window.setInterval(() => setIndex((value) => (value + 1) % items.length), 8000);
+    return () => window.clearInterval(timer);
+  }, [items.length]);
+
+  return (
+    <section className="cs_testimonial_section pb-0 cs_section_padding" aria-roledescription="carousel" aria-label="Customer testimonials">
+      <div className="container">
+        <div className="cs_section_heading_style_1 text-center mx-auto">
+          <h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">What Our Customers Say</h2>
+        </div>
+        <div className="cs_testimonial_style_1">
+          <div className="cs_testimonial_thumb cs_testimonial_thumb_left">
+            <Image src={current.photoPath || "/assets/img/testimonial-1.jpg"} alt={current.photoPath ? current.name : "Happy customer"} width={360} height={450} />
+          </div>
+          <div className="cs_testimonial_body" aria-live="polite">
+            <span className="cs_testimonial_quote"><Image src="/assets/img/icons/quote.svg" alt="" width={45} height={38} /></span>
+            {current.rating ? (
+              <div className="cs_rating testimonialStars" aria-label={`${current.rating} out of 5 stars`}>
+                <div className="cs_rating_percentage" style={{ width: `${(current.rating / 5) * 100}%` }} />
+              </div>
+            ) : null}
+            <blockquote>&quot;{current.body}&quot;</blockquote>
+            <p className="cs_testimonial_name cs_medium cs_primary_color mb-0">
+              {current.name}{current.location ? <span className="testimonialLocation">, {current.location}</span> : null}
+            </p>
+            {items.length > 1 && (
+              <div className="testimonialNav">
+                <button type="button" onClick={() => go(-1)} aria-label="Previous testimonial"><i className="ri-arrow-left-s-line" /></button>
+                <div className="testimonialDots">
+                  {items.map((item, dot) => (
+                    <button key={item.id} type="button" onClick={() => setIndex(dot)} aria-label={`Show testimonial ${dot + 1}`} aria-current={dot === index % items.length} />
+                  ))}
+                </div>
+                <button type="button" onClick={() => go(1)} aria-label="Next testimonial"><i className="ri-arrow-right-s-line" /></button>
+              </div>
+            )}
+          </div>
+          <div className="cs_testimonial_thumb cs_testimonial_thumb_right">
+            <Image src="/assets/img/testimonial-2.jpg" alt="" width={360} height={450} />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
 }
 
 export function Index2ProductTile({ product }: { product: Product }) {
@@ -34,7 +112,8 @@ export function Index2ProductTile({ product }: { product: Product }) {
 
   function addProduct() {
     if (!product.stock) return;
-    addToCart(product);
+    const success = addToCart(product);
+    if (!success) return;
     setAdded(true);
     window.setTimeout(() => setAdded(false), 1300);
     import("sweetalert2").then(({ default: Swal }) => {
@@ -118,9 +197,7 @@ export function Index2ProductTile({ product }: { product: Product }) {
         <h3 className="cs_product_title cs_fs_22 cs_medium mb-0">
           <Link href={`/products/${product.slug}`}>{product.name}</Link>
         </h3>
-        <div className="cs_rating" aria-label="5 out of 5 stars">
-          <div className="cs_rating_percentage" />
-        </div>
+        <ProductRating rating={product.rating} />
         <p className="cs_product_price cs_primary_color mb-0">{formatINR(price)}</p>
       </div>
     </article>
@@ -199,6 +276,7 @@ function TemplateNavList({ setMenuOpen, navItems }: { setMenuOpen: (open: boolea
 
 export function TemplateHeader() {
   const site = useSiteSettings();
+  const topbarPhone = site.tollFreeNumber || site.supportPhone;
   const [menuOpen, setMenuOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { cartCount, wishlist } = useStore();
@@ -229,8 +307,15 @@ export function TemplateHeader() {
             </div>
             <p className="cs_topbar_notice_text">Complimentary insured delivery across India. <Link href="/shop">Shop Now!</Link></p>
             <div className="cs_topbar_links">
-              <Link href="/account#orders"><i className="ri-truck-line" />Order Tracking</Link>
-              <Link href="/custom-jewellery"><i className="ri-chat-1-line" />Custom Enquiry</Link>
+              {topbarPhone && (
+                <a href={`tel:${topbarPhone.replace(/[^\d+]/g, "")}`} aria-label={`${site.tollFreeNumber ? "Toll-free" : "Call us"}: ${topbarPhone}`}>
+                  <i className="ri-phone-line" />
+                  {site.tollFreeNumber && <span className="cs_topbar_hide_sm">Toll-free:</span>}
+                  {topbarPhone}
+                </a>
+              )}
+              <Link href="/account#orders"><i className="ri-truck-line" />Track Your Order</Link>
+              <Link href="/custom-jewellery" className="cs_topbar_hide_sm"><i className="ri-chat-1-line" />Custom Enquiry</Link>
             </div>
           </div>
         </div>
@@ -240,7 +325,7 @@ export function TemplateHeader() {
           <div className="cs_main_header_in">
             <div className="cs_main_header_left">
               <Link className="cs_site_branding" href="/" aria-label={`${site.name} home`}>
-                <Image src="/assets/img/sonaro-logo.png" alt={site.name} width={240} height={135} style={{ height: '60px', width: 'auto', maxHeight: '100%' }} priority />
+                <Image src="/assets/img/sonaro-logo.png" alt={site.name} width={1559} height={480} style={{ height: '44px', width: 'auto', maxHeight: '100%' }} priority />
               </Link>
             </div>
             <div className="cs_main_header_center">
@@ -299,7 +384,7 @@ export function TemplateFooter() {
         <div className="container">
           <div className="cs_footer_grid">
             <div className="cs_footer_widget cs_text_widget">
-              <Link className="cs_footer_logo" href="/"><Image src="/assets/img/sonaro-logo-white.png" alt={site.name} width={240} height={135} style={{ height: '60px', width: 'auto' }} /></Link>
+              <Link className="cs_footer_logo" href="/"><Image src="/assets/img/sonaro-logo-white.png" alt={site.name} width={1559} height={480} style={{ height: '48px', width: 'auto' }} /></Link>
               <p>Heirloom-quality jewellery crafted with intention. Each gemstone tells a story, each setting is a promise.</p>
               {(site.facebookUrl || site.instagramUrl) && <>
                 <h3 className="cs_footer_widget_title cs_fs_22 cs_semibold cs_white_color">Join Us</h3>
@@ -365,7 +450,7 @@ export function TemplateFooter() {
       </div>
       <div className="cs_footer_bottom">
         <div className="container"><div className="cs_footer_bottom_in">
-          <p className="cs_footer_copyright mb-0">© {currentYear} {site.name}. All rights reserved.</p>
+          <p className="cs_footer_copyright mb-0">© {currentYear} SONAARAA. All rights reserved.</p>
           <div className="cs_footer_payments"><Image src="/assets/img/payment_logo.png" alt="Secure payment methods" width={248} height={28} /></div>
         </div></div>
       </div>
@@ -419,7 +504,7 @@ function HeroSlider({
   );
 }
 
-export function Index2Home({ banners, categories, featured, newArrivals, trending, journal }: Index2HomeProps) {
+export function Index2Home({ banners, categories, featured, newArrivals, trending, journal, testimonials }: Index2HomeProps) {
   const site = useSiteSettings();
   const promo = banners.find((banner) => banner.placement === "homepage_promo");
   const promoImage = promo?.imagePath || "/assets/img/offer-banner-1.jpg";
@@ -454,9 +539,9 @@ export function Index2Home({ banners, categories, featured, newArrivals, trendin
 
       {allNew.length > 0 && <section className="cs_new_collection pb-0 cs_section_padding"><div className="container"><div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">New Collection</h2></div><div className="cs_grid_col_4">{allNew.slice(0, 3).map((product) => <Index2ProductTile product={product} key={product.id} />)}<article className="cs_product_style_1 cs_card_banner"><Link href="/shop" className="cs_card_banner_link"><div className="cs_promo_bg"><Image src="/assets/img/product-img-41.jpg" alt="Special celebrations" width={560} height={560} /></div><div className="cs_card_banner_content"><h3 className="cs_card_banner_title cs_fs_22 cs_medium">Special Celebrations</h3><p className="cs_card_banner_sub cs_fs_18">15% Off</p><span className="cs_card_banner_btn cs_medium">Shop Now</span></div></Link></article>{allNew.slice(3, 6).map((product) => <Index2ProductTile product={product} key={product.id} />)}</div></div></section>}
 
-      <section className="cs_why_different pb-0 cs_section_padding"><div className="container"><div className="cs_why_different_in cs_gray_bg"><div className="cs_why_different_content"><div className="cs_section_heading_style_1 mb-0"><h2 className="cs_section_title cs_fs_36 cs_semibold">Why {site.name} is different?</h2><p className="cs_why_different_desc mb-0">We don&apos;t just craft jewellery; we weave emotions into every piece. From ethically sourced gems to heirloom-quality finishing, we celebrate your unique story.</p></div><div className="cs_why_different_cards"><div className="cs_why_different_card cs_white_bg"><h3 className="cs_card_title cs_fs_22 cs_medium">Certified Authenticity</h3><p className="cs_card_text cs_fs_14 mb-0">Hallmarked gold and transparent product specifications.</p></div><div className="cs_why_different_card cs_white_bg"><h3 className="cs_card_title cs_fs_22 cs_medium">Handcrafted by Artisans</h3><p className="cs_card_text cs_fs_14 mb-0">Skilled jewellers creating pieces for life&apos;s milestones.</p></div></div><div className="cs_funfact_list cs_border_bg"><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_28 cs_semibold cs_primary_font">12k+</span><p className="cs_funfact_label cs_fs_14 mb-0">Happy Customers</p></div></div><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_28 cs_semibold cs_primary_font">98%</span><p className="cs_funfact_label cs_fs_14 mb-0">5-Star Reviews</p></div></div><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_28 cs_semibold cs_primary_font">30 <span className="cs_funfact_unit cs_fs_22 cs_medium">Days</span></span><p className="cs_funfact_label cs_fs_14 mb-0">Easy Returns</p></div></div></div></div><div className="cs_why_different_thumb"><Image src="/assets/img/why-different.jpg" alt="Woman wearing fine jewellery" width={620} height={665} /></div></div></div></section>
+      <section className="cs_why_different pb-0 cs_section_padding"><div className="container"><div className="cs_why_different_in cs_gray_bg"><div className="cs_why_different_content"><div className="cs_section_heading_style_1 mb-0"><h2 className="cs_section_title cs_fs_36 cs_semibold">Why {site.name} is Different</h2><p className="cs_why_different_desc mb-0">At {site.name}, every piece is more than jewellery — it&apos;s a reflection of your style, your emotions, and your special moments. Discover thoughtfully designed jewellery crafted to make every occasion unforgettable.</p></div><div className="cs_why_different_cards"><div className="cs_why_different_card cs_white_bg"><h3 className="cs_card_title cs_fs_22 cs_medium">Timeless Designs</h3><p className="cs_card_text cs_fs_14 mb-0">Elegant jewellery designed to complement your unique style, from everyday elegance to special celebrations.</p></div><div className="cs_why_different_card cs_white_bg"><h3 className="cs_card_title cs_fs_22 cs_medium">Crafted with Care</h3><p className="cs_card_text cs_fs_14 mb-0">Every detail is thoughtfully considered, bringing together beautiful craftsmanship and a premium finish.</p></div></div><div className="cs_why_different_card cs_white_bg" style={{ maxWidth: '648px' }}><h3 className="cs_card_title cs_fs_22 cs_medium">Our Promise to You</h3><p className="cs_card_text cs_fs_14 mb-0">We believe in transparency, quality, and a shopping experience that makes choosing your jewellery truly special.</p></div><div className="cs_funfact_list cs_border_bg"><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_22 cs_semibold cs_primary_font" style={{ whiteSpace: 'normal', lineHeight: 1.2 }}>New Beginnings</span><p className="cs_funfact_label cs_fs_14 mb-0">Discover Our Collection</p></div></div><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_22 cs_semibold cs_primary_font" style={{ whiteSpace: 'normal', lineHeight: 1.2 }}>Quality First</span><p className="cs_funfact_label cs_fs_14 mb-0">Made with Care</p></div></div><div className="cs_funfact"><div><span className="cs_funfact_number cs_fs_22 cs_semibold cs_primary_font" style={{ whiteSpace: 'normal', lineHeight: 1.2 }}>Your Style, Your Story</span><p className="cs_funfact_label cs_fs_14 mb-0">Jewellery That Feels Personal</p></div></div></div></div><div className="cs_why_different_thumb"><Image src="/assets/img/why-different.jpg" alt="Woman wearing fine jewellery" width={620} height={665} /></div></div></div></section>
 
-      <section className="cs_testimonial_section pb-0 cs_section_padding"><div className="container"><div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">What Our Customers Say</h2></div><div className="cs_testimonial_style_1"><div className="cs_testimonial_thumb cs_testimonial_thumb_left"><Image src="/assets/img/testimonial-1.jpg" alt="Happy customer" width={360} height={450} /></div><div className="cs_testimonial_body"><span className="cs_testimonial_quote"><Image src="/assets/img/icons/quote.svg" alt="Quote" width={45} height={38} /></span><blockquote>&quot;The craftsmanship is beautiful and the entire order experience felt considered from start to finish. My piece arrived exactly as expected and is already a treasured favourite.&quot;</blockquote><p className="cs_testimonial_name cs_medium cs_primary_color mb-0">A valued customer</p></div><div className="cs_testimonial_thumb cs_testimonial_thumb_right"><Image src="/assets/img/testimonial-2.jpg" alt="Jewellery customer" width={360} height={450} /></div></div></div></section>
+      <TestimonialsSection testimonials={testimonials} />
 
       {allTrending.length > 0 && <section className="cs_trending_section pb-0 cs_section_padding"><div className="container"><div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">Trending Products</h2></div><div className="cs_grid_col_4"><div className="cs_product_promo_3"><div className="cs_promo_bg"><Image src="/assets/img/trending-promo.jpg" alt="Jewellery offer" width={560} height={560} /></div><div className="cs_promo_content"><span className="cs_promo_label cs_fs_22 cs_medium cs_primary_font cs_primary_color">Signature Edit</span><p className="cs_promo_price cs_primary_color mb-0"><span className="cs_fs_18">Discover</span><span className="cs_fs_36 cs_semibold cs_primary_font">New</span><span className="cs_fs_18">Favourites</span></p><Link href="/shop" className="cs_promo_btn cs_medium">Shop Now</Link></div></div>{allTrending.slice(0, 3).map((product) => <Index2ProductTile product={product} key={product.id} />)}</div></div></section>}
 

@@ -12,7 +12,8 @@ export function ProductPurchase({ product }: { product: Product }) {
   const maxQuantity = maxQuantityFor(product.stock);
 
   function add() {
-    addToCart(product, quantity);
+    const success = addToCart(product, quantity);
+    if (!success) return;
     Swal.fire({
       toast: true,
       position: 'bottom',
