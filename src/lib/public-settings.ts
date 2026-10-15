@@ -8,6 +8,7 @@ interface ApiPublicSettings {
     name?: string | null;
     support_email?: string | null;
     support_phone?: string | null;
+    toll_free_number?: string | null;
     whatsapp_number?: string | null;
     instagram_url?: string | null;
     facebook_url?: string | null;
@@ -36,6 +37,8 @@ export interface SiteSettings {
   url: string;
   supportEmail: string;
   supportPhone: string;
+  /** Empty when no toll-free number is set; the top bar then shows supportPhone. */
+  tollFreeNumber: string;
   whatsappNumber: string;
   instagramUrl: string;
   facebookUrl: string;
@@ -103,6 +106,7 @@ export const getPublicSettings = cache(async (): Promise<PublicSettings> => {
       url: siteConfig.url,
       supportEmail: pick(store.support_email, siteConfig.supportEmail),
       supportPhone: pick(store.support_phone, siteConfig.supportPhone),
+      tollFreeNumber: pick(store.toll_free_number, siteConfig.tollFreeNumber),
       whatsappNumber: pick(store.whatsapp_number, siteConfig.whatsappNumber),
       instagramUrl: pick(store.instagram_url, siteConfig.instagramUrl),
       facebookUrl: pick(store.facebook_url, siteConfig.facebookUrl),

@@ -5,6 +5,7 @@ export const siteConfig = {
   url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "manipreciousllp@gmail.com",
   supportPhone: process.env.NEXT_PUBLIC_SUPPORT_PHONE || "9664115493",
+  tollFreeNumber: process.env.NEXT_PUBLIC_TOLL_FREE_NUMBER || "",
   whatsappNumber: process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || "",
   instagramUrl: process.env.NEXT_PUBLIC_INSTAGRAM_URL || "",
   facebookUrl: process.env.NEXT_PUBLIC_FACEBOOK_URL || "",

@@ -43,6 +43,25 @@ interface ApiProduct {
     total: number;
   };
   flags: { featured: boolean; best_seller: boolean; new_arrival: boolean };
+  rating?: { average: number | null; count: number };
+}
+
+interface ApiTestimonial {
+  id: number;
+  name: string;
+  location: string | null;
+  body: string;
+  rating: number | null;
+  photo_path: string | null;
+}
+
+export interface StorefrontTestimonial {
+  id: number;
+  name: string;
+  location: string | null;
+  body: string;
+  rating: number | null;
+  photoPath: string | null;
 }
 
 interface ApiBanner {
@@ -132,6 +151,7 @@ function mapProduct(item: ApiProduct): Product {
       gst: item.pricing.gst,
       total: item.pricing.total,
     },
+    rating: item.rating ?? { average: null, count: 0 },
     featured: item.flags.featured,
     bestSeller: item.flags.best_seller,
     newArrival: item.flags.new_arrival,
@@ -233,6 +253,30 @@ export const getBanners = cache(async (): Promise<StorefrontBanner[]> => {
       imagePath: banner.image_path,
       mobileImagePath: banner.mobile_image_path,
       linkUrl: banner.link_url,
+    }));
+  } catch {
+    return [];
+  }
+});
+
+export const getTestimonials = cache(async (): Promise<StorefrontTestimonial[]> => {
+  const url = apiUrl("/testimonials");
+  if (!url) return [];
+
+  try {
+    const response = await fetch(url, {
+      headers: { Accept: "application/json" },
+      signal: AbortSignal.timeout(4000),
+    });
+    if (!response.ok) return [];
+    const payload = (await response.json()) as { data: ApiTestimonial[] };
+    return payload.data.map((item) => ({
+      id: item.id,
+      name: item.name,
+      location: item.location,
+      body: item.body,
+      rating: item.rating,
+      photoPath: item.photo_path,
     }));
   } catch {
     return [];

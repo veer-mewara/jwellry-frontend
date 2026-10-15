@@ -24,6 +24,9 @@ interface OrderData {
     line_total: number | string;
   }>;
   timeline: Array<{ status: string; note?: string | null; created_at: string }>;
+  shipment?: { courier: string | null; awb: string; tracking_url: string | null } | null;
+  /** Printable GST invoice, once it has been issued (usually when the order ships). */
+  invoice_url?: string | null;
 }
 
 type State =
@@ -158,7 +161,24 @@ export function OrderView({
           <div><dt>Order status</dt><dd>{orderStatusLabel(order.status)}</dd></div>
           <div><dt>Payment</dt><dd>{orderStatusLabel(order.payment_status)}</dd></div>
           <div><dt>Total</dt><dd>{formatINR(Number(order.grand_total))}</dd></div>
+          {order.shipment && (
+            <div><dt>Courier</dt><dd>{order.shipment.courier || "Assigned courier"} · AWB {order.shipment.awb}</dd></div>
+          )}
         </dl>
+        {(order.shipment?.tracking_url || order.invoice_url) && (
+          <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+            {order.shipment?.tracking_url && (
+              <a href={order.shipment.tracking_url} target="_blank" rel="noopener noreferrer" className="button buttonDark">
+                <i className="ri-truck-line" /> Track your parcel
+              </a>
+            )}
+            {order.invoice_url && (
+              <a href={order.invoice_url} target="_blank" rel="noopener noreferrer" className="button buttonOutline">
+                <i className="ri-file-text-line" /> Download invoice
+              </a>
+            )}
+          </div>
+        )}
       </section>
       <section className="accountPanel">
         <h2>Items</h2>

@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { ProductCard } from "@/components/product-card";
 import { ProductGallery } from "@/components/product-gallery";
 import { ProductPurchase } from "@/components/product-purchase";
+import { ProductReviews } from "@/components/product-reviews";
+import { ProductRating } from "@/components/index2-home";
 import { formatINR, getProductPrice } from "@/lib/pricing";
 import { getCatalog, getCatalogProduct } from "@/lib/catalog-api";
 import { siteConfig } from "@/lib/site";
@@ -79,6 +81,9 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
       sku: product.sku,
       image: product.images.map(absoluteUrl),
       brand: { "@type": "Brand", name: site.name },
+      ...(product.rating?.count && product.rating.average !== null
+        ? { aggregateRating: { "@type": "AggregateRating", ratingValue: product.rating.average, reviewCount: product.rating.count } }
+        : {}),
       offers: {
         "@type": "Offer",
         priceCurrency: "INR",
@@ -119,6 +124,9 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
         <div className="productSummary">
           {product.collection && <span className="eyebrow">{product.collection} collection</span>}
           <h1>{product.name}</h1>
+          {product.rating?.count ? (
+            <a href="#reviews" className="productRatingLink"><ProductRating rating={product.rating} /></a>
+          ) : null}
           <p className="sku">SKU {product.sku}</p>
           <div className="detailPrice">{formatINR(price.total)}</div>
           <p className="taxNote">Inclusive of making charges and GST</p>
@@ -173,6 +181,7 @@ export default async function ProductPage({ params }: PageProps<"/products/[slug
           </details>
         </div>
       </div>
+      <ProductReviews productId={product.id} slug={product.slug} />
       {related.length > 0 && (
         <section className="relatedSection">
           <h2>You may also like</h2>

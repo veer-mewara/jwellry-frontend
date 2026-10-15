@@ -8,3 +8,13 @@ export function safeNextPath(value: string | null): string | null {
   if (!value || !value.startsWith("/") || value.startsWith("//") || value.startsWith("/\\")) return null;
   return value;
 }
+
+export function getCustomerToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return window.localStorage.getItem(ACCOUNT_TOKEN_KEY);
+}
+
+export function isCustomerLoggedIn(): boolean {
+  return Boolean(getCustomerToken());
+}
+

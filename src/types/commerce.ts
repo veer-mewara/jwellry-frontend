@@ -39,6 +39,8 @@ export interface Product {
   newArrival?: boolean;
   specifications: Record<string, string>;
   pricing?: PriceBreakdown;
+  /** Approved customer reviews; average is null until the first one is approved. */
+  rating?: { average: number | null; count: number };
 }
 
 export interface MetalRates {
