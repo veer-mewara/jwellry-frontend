@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import { firstImage } from "@/lib/product-image";
 
 export function ProductGallery({
   images,
@@ -10,7 +11,7 @@ export function ProductGallery({
   images: string[];
   name: string;
 }) {
-  const [activeImage, setActiveImage] = useState(images[0] || "/assets/img/placeholder.jpg");
+  const [activeImage, setActiveImage] = useState(firstImage(images));
   const [zoomed, setZoomed] = useState(false);
 
   const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {

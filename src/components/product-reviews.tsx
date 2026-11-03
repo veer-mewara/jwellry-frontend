@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { getCustomerToken } from "@/lib/account";
+import { ACCOUNT_TOKEN_KEY, getCustomerToken } from "@/lib/account";
 import { endpoint, jsonHeaders, requestJson, responseMessage } from "@/lib/account-api";
 
 interface Review {
@@ -105,6 +105,11 @@ export function ProductReviews({ productId, slug }: { productId: number; slug: s
         headers: jsonHeaders(token),
         body: JSON.stringify({ product_id: productId, rating, title: form.get("title"), body: form.get("body") }),
       });
+      if (response.status === 401) {
+        // The sign-in ended (signed out elsewhere, password changed): forget the dead token.
+        window.localStorage.removeItem(ACCOUNT_TOKEN_KEY);
+        throw new Error("Your sign-in has expired. Please sign in again to post your review.");
+      }
       if (!response.ok) throw new Error(responseMessage(response, data));
       setFormOpen(false);
       await load();

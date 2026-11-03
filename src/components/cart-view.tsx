@@ -24,18 +24,29 @@ export function CartView() {
     );
   }
 
+  const pieces = cart.reduce((count, line) => count + line.quantity, 0);
+
   return (
     <div className="cartGrid">
-      <div className="cartLines">
+      <section className="cartLines" aria-label="Pieces in your bag">
+        <header className="cartLinesHead">
+          <span>{pieces} {pieces === 1 ? "piece" : "pieces"}</span>
+          <Link href="/shop">Continue shopping</Link>
+        </header>
         {cart.map((line) => (
           <article className="cartLine" key={line.productId}>
             <Link className="cartImage" href={`/products/${line.slug}`}>
               <Image src={line.image} alt={line.name} fill sizes="140px" />
             </Link>
             <div className="cartLineMain">
-              <span>{line.purity}</span>
-              <h2><Link href={`/products/${line.slug}`}>{line.name}</Link></h2>
-              <p>{formatINR(line.price)}</p>
+              <div className="cartLineTop">
+                <div>
+                  <span className="cartPurity">{line.purity}</span>
+                  <h2><Link href={`/products/${line.slug}`}>{line.name}</Link></h2>
+                  {line.quantity > 1 && <p className="cartUnitPrice">{formatINR(line.price)} each</p>}
+                </div>
+                <strong className="cartLineTotal">{formatINR(line.price * line.quantity)}</strong>
+              </div>
               {line.stock === 0 && <p className="soldOutNote" role="status">Sold out — remove this piece to check out.</p>}
               <div className="cartLineActions">
                 <div className="stepper">
@@ -46,15 +57,15 @@ export function CartView() {
                 <button type="button" className="removeButton" onClick={() => removeFromCart(line.productId)}>Remove</button>
               </div>
             </div>
-            <strong>{formatINR(line.price * line.quantity)}</strong>
           </article>
         ))}
-      </div>
+      </section>
       <aside className="orderSummary">
         <h2>Order summary</h2>
         <CouponTotals subtotal={subtotal} preview={preview} checking={checking} />
-        <div><span>Shipping</span><b>Calculated at checkout</b></div>
+        <div><span>Insured shipping</span><b>Free</b></div>
         <div className="summaryTotal"><span>Estimated total</span><b>{checking ? "Checking coupon…" : formatINR(couponTotal(subtotal, preview))}</b></div>
+        <p className="summaryTaxNote">Prices include GST.</p>
         <form className="couponForm" onSubmit={(event) => {
           event.preventDefault();
           setCouponCode(coupon.trim().toUpperCase());

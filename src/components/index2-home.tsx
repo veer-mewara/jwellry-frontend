@@ -9,6 +9,8 @@ import type { StorefrontBanner, StorefrontBlogPost, StorefrontTestimonial } from
 import { formatINR, getProductPrice } from "@/lib/pricing";
 import { useSiteSettings } from "@/components/site-settings-provider";
 import { useStore } from "@/components/store-provider";
+import { NewsletterForm } from "@/components/newsletter-form";
+import { CategoryCarousel } from "@/components/category-carousel";
 
 interface CategoryCard {
   slug: string;
@@ -169,6 +171,16 @@ export function Index2ProductTile({ product }: { product: Product }) {
             </span>
           </div>
         )}
+        {/* Shop grid on phones: hover buttons cannot be reached there, so the heart always shows. */}
+        <button
+          type="button"
+          className={wished ? "tileHeart tileHeartOn" : "tileHeart"}
+          onClick={() => toggleWishlist(product.id)}
+          aria-label={wished ? "Remove from wishlist" : "Add to wishlist"}
+          aria-pressed={wished}
+        >
+          <i className={wished ? "ri-heart-3-fill" : "ri-heart-3-line"} />
+        </button>
         <div className="cs_action_btns cs_center">
           <button
             type="button"
@@ -199,35 +211,19 @@ export function Index2ProductTile({ product }: { product: Product }) {
         </h3>
         <ProductRating rating={product.rating} />
         <p className="cs_product_price cs_primary_color mb-0">{formatINR(price)}</p>
-      </div>
-    </article>
-  );
-}
-
-function HeroProduct({ product }: { product?: Product }) {
-  const { addToCart } = useStore();
-
-  if (!product) return null;
-
-  return (
-    <article className="cs_product_style_1 cs_white_bg">
-      <div className="cs_product_thumb cs_center">
-        {product.newArrival && <span className="cs_product_badge cs_accent_bg cs_fs_12 cs_white_color">New</span>}
-        <button
-          type="button"
-          className="cs_product_btn cs_center cs_primary_bg cs_white_color"
-          onClick={() => addToCart(product)}
-          aria-label={`Add ${product.name} to cart`}
-        >
-          <i className="ri-shopping-cart-2-line" />
-        </button>
-        <Image src={product.images[0]} alt={product.name} width={360} height={360} sizes="(max-width: 767px) 42vw, 230px" />
-      </div>
-      <div className="cs_product_info">
-        <h2 className="cs_product_title cs_fs_22 cs_medium mb-0">
-          <Link href={`/products/${product.slug}`}>{product.name}</Link>
-        </h2>
-        <span className="cs_product_price cs_accent_color">{formatINR(getProductPrice(product).total)}</span>
+        <div className="tileBuyRow">
+          <span className="tilePrice">{formatINR(price)}</span>
+          <button
+            type="button"
+            className="tileAdd"
+            onClick={addProduct}
+            disabled={product.stock === 0}
+            aria-label={product.stock === 0 ? "Out of stock" : `Add ${product.name} to cart`}
+          >
+            <i className={added ? "ri-check-line" : "ri-add-line"} />
+          </button>
+        </div>
+        {product.discountPercentage > 0 && <p className="tileOffer">Flat {product.discountPercentage}% off</p>}
       </div>
     </article>
   );
@@ -305,12 +301,11 @@ export function TemplateHeader() {
               {site.facebookUrl && <a href={site.facebookUrl} target="_blank" rel="noopener noreferrer" aria-label="Facebook"><i className="ri-facebook-fill" /></a>}
               {site.instagramUrl && <a href={site.instagramUrl} target="_blank" rel="noopener noreferrer" aria-label="Instagram"><i className="ri-instagram-line" /></a>}
             </div>
-            <p className="cs_topbar_notice_text">Complimentary insured delivery across India. <Link href="/shop">Shop Now!</Link></p>
             <div className="cs_topbar_links">
               {topbarPhone && (
-                <a href={`tel:${topbarPhone.replace(/[^\d+]/g, "")}`} aria-label={`${site.tollFreeNumber ? "Toll-free" : "Call us"}: ${topbarPhone}`}>
+                <a href={`tel:${topbarPhone.replace(/[^\d+]/g, "")}`} aria-label={`${site.tollFreeNumber ? "Toll-free" : "Call Support"}: ${topbarPhone}`}>
                   <i className="ri-phone-line" />
-                  {site.tollFreeNumber && <span className="cs_topbar_hide_sm">Toll-free:</span>}
+                  <span>{site.tollFreeNumber ? "Toll-free:" : "Call Support:"}</span>
                   {topbarPhone}
                 </a>
               )}
@@ -407,7 +402,7 @@ export function TemplateFooter() {
             <div className="cs_footer_widget">
               <h3 className="cs_footer_widget_title cs_fs_22 cs_semibold cs_white_color">About</h3>
               <ul className="cs_footer_links cs_mp_0">
-                <li><Link href="/custom-jewellery">Our Story</Link></li>
+                <li><Link href="/#our-story">Our Story</Link></li>
                 <li><Link href="/journal">Journal</Link></li>
                 <li><Link href="/account">My Account</Link></li>
                 <li><Link href="/privacy-policy">Privacy Policy</Link></li>
@@ -458,11 +453,7 @@ export function TemplateFooter() {
   );
 }
 
-function HeroSlider({
-  banners,
-  featured,
-  newArrivals,
-}: Pick<Index2HomeProps, "banners" | "featured" | "newArrivals">) {
+function HeroSlider({ banners }: Pick<Index2HomeProps, "banners">) {
   const slides = banners.filter((banner) => banner.placement === "homepage_hero");
   const [activeIndex, setActiveIndex] = useState(0);
   const slideCount = slides.length;
@@ -496,7 +487,6 @@ function HeroSlider({
               <Link href="/shop" className="cs_btn_style_1 cs_hero_btn_outline">Explore Collection</Link>
             </div>
           </div>
-          <div className="cs_hero_products_wrap"><HeroProduct product={featured[0]} /><HeroProduct product={featured[1] || newArrivals[0]} /></div>
         </div></div></div>
       </div>
 
@@ -513,19 +503,14 @@ export function Index2Home({ banners, categories, featured, newArrivals, trendin
 
   return (
     <div className="index2Home">
-      <HeroSlider banners={banners} featured={featured} newArrivals={allNew} />
+      <HeroSlider banners={banners} />
 
       {categories.length > 0 && <section className="cs_shop_category pb-0 cs_section_padding"><div className="container">
         <div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">Shop by Category</h2></div>
-        <div className="index2CategoryGrid">
-          {categories.slice(0, 4).map((category) => <Link href={`/shop?category=${category.slug}`} className="cs_category_card" key={category.slug}>
-            <div className="cs_category_thumb"><Image src={category.image} alt={category.name} width={480} height={560} sizes="(max-width: 575px) 50vw, 25vw" /></div>
-            <div className="cs_category_meta"><h3 className="cs_category_name cs_fs_22 cs_medium mb-0">{category.name}</h3><span className="cs_category_count cs_fs_16">{category.count} Items</span></div>
-          </Link>)}
-        </div>
+        <CategoryCarousel categories={categories.slice(0, 12)} />
       </div></section>}
 
-      <section className="cs_about_style_1 pb-0 cs_section_padding"><div className="container"><div className="cs_about_in">
+      <section id="our-story" className="cs_about_style_1 pb-0 cs_section_padding" style={{ scrollMarginTop: "90px" }}><div className="container"><div className="cs_about_in">
         <div className="cs_about_thumb"><Image src="/assets/img/about-1.png" alt="Handcrafted jewellery" width={662} height={738} /></div>
         <div className="cs_about_content"><div className="cs_section_heading_style_1"><p className="cs_section_subtitle cs_fs_14">Our story</p><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">Where Timeless Craft Meets Modern Soul</h2></div>
           <div className="cs_about_band"><div className="cs_about_band_text"><p className="cs_about_desc">Every piece is made with care by skilled artisans. We pair transparent pricing with certified metals so that every celebration begins with confidence. <span className="cs_primary_color">We don&apos;t just make jewellery — we preserve memories.</span></p><Link href="/custom-jewellery" className="cs_about_link cs_medium cs_primary_color"><span>View Our Story</span></Link></div><div className="cs_about_band_thumb"><Image src="/assets/img/about-2.png" alt="Fine gold jewellery detail" width={262} height={293} /></div></div>
@@ -545,7 +530,7 @@ export function Index2Home({ banners, categories, featured, newArrivals, trendin
 
       {allTrending.length > 0 && <section className="cs_trending_section pb-0 cs_section_padding"><div className="container"><div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">Trending Products</h2></div><div className="cs_grid_col_4"><div className="cs_product_promo_3"><div className="cs_promo_bg"><Image src="/assets/img/trending-promo.jpg" alt="Jewellery offer" width={560} height={560} /></div><div className="cs_promo_content"><span className="cs_promo_label cs_fs_22 cs_medium cs_primary_font cs_primary_color">Signature Edit</span><p className="cs_promo_price cs_primary_color mb-0"><span className="cs_fs_18">Discover</span><span className="cs_fs_36 cs_semibold cs_primary_font">New</span><span className="cs_fs_18">Favourites</span></p><Link href="/shop" className="cs_promo_btn cs_medium">Shop Now</Link></div></div>{allTrending.slice(0, 3).map((product) => <Index2ProductTile product={product} key={product.id} />)}</div></div></section>}
 
-      {journal.length > 0 && <section className="cs_blog_journal_section pb-0 cs_section_padding"><div className="container"><div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">Heartfelt Stories From The World of Fine Jewellery Curated For The Modern Collector</h2></div><div className="cs_blog_journal_grid">{journal.slice(0, 1).map((post) => <article className="cs_post_style_4" key={post.id}><Link href={`/journal/${post.slug}`} className="cs_post_thumbnail"><Image src={post.featuredImage || "/assets/img/blog-16.jpg"} alt={post.title} width={560} height={440} /></Link><div className="cs_post_content"><ul className="cs_post_meta cs_fs_14 cs_mp_0"><li><span className="cs_meta_icon"><i className="ri-calendar-line" /></span><span className="cs_meta_text">{post.publishedAt.slice(0, 10)}</span></li></ul><h2 className="cs_post_title cs_fs_22 cs_medium"><Link href={`/journal/${post.slug}`}>{post.title}</Link></h2></div></article>)}<div className="cs_newsletter_style_1 cs_type_1"><div className="cs_newsletter_heading"><h2 className="cs_newsletter_title cs_fs_22 cs_medium cs_primary_color">Get the Journal</h2><p className="cs_newsletter_subtitle mb-0">Subscribe for weekly gems, style edits and exclusive offers.</p></div><div className="cs_newsletter_form_wrap"><form className="cs_newsletter_form" onSubmit={(event) => event.preventDefault()}><input type="email" name="email" placeholder="Your email address" required /><button type="submit" className="cs_btn_style_1 cs_primary_bg cs_white_color">Subscribe</button></form><p className="cs_newsletter_note mb-0">No spam, only stories that shine.</p></div></div>{journal.slice(1, 2).map((post) => <article className="cs_post_style_4" key={post.id}><Link href={`/journal/${post.slug}`} className="cs_post_thumbnail"><Image src={post.featuredImage || "/assets/img/blog-17.jpg"} alt={post.title} width={560} height={440} /></Link><div className="cs_post_content"><ul className="cs_post_meta cs_fs_14 cs_mp_0"><li><span className="cs_meta_icon"><i className="ri-calendar-line" /></span><span className="cs_meta_text">{post.publishedAt.slice(0, 10)}</span></li></ul><h2 className="cs_post_title cs_fs_22 cs_medium"><Link href={`/journal/${post.slug}`}>{post.title}</Link></h2></div></article>)}</div></div></section>}
+      {journal.length > 0 && <section className="cs_blog_journal_section pb-0 cs_section_padding"><div className="container"><div className="cs_section_heading_style_1 text-center mx-auto"><h2 className="cs_section_title cs_fs_36 cs_semibold mb-0">Heartfelt Stories From The World of Fine Jewellery Curated For The Modern Collector</h2></div><div className="cs_blog_journal_grid">{journal.slice(0, 1).map((post) => <article className="cs_post_style_4" key={post.id}><Link href={`/journal/${post.slug}`} className="cs_post_thumbnail"><Image src={post.featuredImage || "/assets/img/blog-16.jpg"} alt={post.title} width={560} height={440} /></Link><div className="cs_post_content"><ul className="cs_post_meta cs_fs_14 cs_mp_0"><li><span className="cs_meta_icon"><i className="ri-calendar-line" /></span><span className="cs_meta_text">{post.publishedAt.slice(0, 10)}</span></li></ul><h2 className="cs_post_title cs_fs_22 cs_medium"><Link href={`/journal/${post.slug}`}>{post.title}</Link></h2></div></article>)}<div className="cs_newsletter_style_1 cs_type_1"><div className="cs_newsletter_heading"><h2 className="cs_newsletter_title cs_fs_22 cs_medium cs_primary_color">Get the Journal</h2><p className="cs_newsletter_subtitle mb-0">Subscribe for weekly gems, style edits and exclusive offers.</p></div><div className="cs_newsletter_form_wrap"><NewsletterForm /></div></div>{journal.slice(1, 2).map((post) => <article className="cs_post_style_4" key={post.id}><Link href={`/journal/${post.slug}`} className="cs_post_thumbnail"><Image src={post.featuredImage || "/assets/img/blog-17.jpg"} alt={post.title} width={560} height={440} /></Link><div className="cs_post_content"><ul className="cs_post_meta cs_fs_14 cs_mp_0"><li><span className="cs_meta_icon"><i className="ri-calendar-line" /></span><span className="cs_meta_text">{post.publishedAt.slice(0, 10)}</span></li></ul><h2 className="cs_post_title cs_fs_22 cs_medium"><Link href={`/journal/${post.slug}`}>{post.title}</Link></h2></div></article>)}</div></div></section>}
 
       <section className="cs_feature_section cs_section_padding"><div className="container"><div className="cs_grid_col_4">{[["free-shipping.svg", "Insured Delivery", "Safe delivery across India"], ["secure-payment.svg", "Secure Payment", "Razorpay protected checkout"], ["easy-return.svg", "Easy Return", "Simple return assistance"], ["certified-jewelry.svg", "Certified Jewellery", "Purity details on every piece"]].map(([icon, title, description]) => <div className="cs_iconbox_style_1 cs_iconbox_center" key={title}><span className="cs_iconbox_icon cs_center cs_gray_bg rounded-circle"><Image src={`/assets/img/icons/${icon}`} alt={title} width={32} height={32} /></span><div className="cs_iconbox_info"><h3 className="cs_iconbox_title cs_fs_22 cs_medium">{title}</h3><p className="mb-0">{description}</p></div></div>)}</div></div></section>
     </div>

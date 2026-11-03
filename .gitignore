@@ -40,3 +40,5 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 *.xlsx
+# The example file documents the settings and holds no secrets.
+!.env.example

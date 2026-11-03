@@ -5,6 +5,7 @@ import "./globals.css";
 import { TemplateFooter, TemplateHeader } from "@/components/index2-home";
 import { StoreProvider } from "@/components/store-provider";
 import { WhatsappButton } from "@/components/whatsapp-button";
+import { NewsletterPopup } from "@/components/newsletter-popup";
 import { GoogleAnalytics } from "@/components/google-analytics";
 import { SiteSettingsProvider } from "@/components/site-settings-provider";
 import { getPublicSettings } from "@/lib/public-settings";
@@ -60,6 +61,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             <main className="storefrontMain">{children}</main>
             <TemplateFooter />
             <WhatsappButton />
+            {settings.popup.enabled && <NewsletterPopup popup={settings.popup} />}
           </StoreProvider>
         </SiteSettingsProvider>
         <GoogleAnalytics measurementId={settings.site.gaMeasurementId} />

@@ -5,8 +5,11 @@ import { useSiteSettings } from "@/components/site-settings-provider";
 
 export function WhatsappButton() {
   const { whatsappNumber } = useSiteSettings();
+  const digits = whatsappNumber.replace(/\D/g, "");
+  // wa.me needs the country code; a plain 10-digit number is an Indian mobile.
+  const waNumber = digits.length === 10 ? `91${digits}` : digits;
   const href = whatsappNumber
-    ? `https://wa.me/${whatsappNumber.replace(/\D/g, "")}?text=${encodeURIComponent("Hello, I would like help choosing a jewellery piece.")}`
+    ? `https://wa.me/${waNumber}?text=${encodeURIComponent("Hello, I would like help choosing a jewellery piece.")}`
     : "/custom-jewellery";
 
   return (
@@ -15,6 +18,7 @@ export function WhatsappButton() {
       target={whatsappNumber ? "_blank" : undefined}
       rel={whatsappNumber ? "noreferrer" : undefined}
       aria-label="Chat with our jewellery concierge"
+      className="whatsappFloat"
       style={{
         position: 'fixed',
         zIndex: 50,

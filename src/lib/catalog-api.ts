@@ -1,5 +1,6 @@
 import "server-only";
 import { cache } from "react";
+import { productImages } from "@/lib/product-image";
 import type {
   Metal,
   Product,
@@ -134,7 +135,7 @@ function mapProduct(item: ApiProduct): Product {
     gstRate: item.gst_rate,
     rateOverridePerGram:
       item.rate_override_per_gram ?? item.pricing.reference_rate_per_gram,
-    images: item.images.map((image) => image.path),
+    images: productImages(item.images),
     stock: item.stock_quantity,
     summary: item.summary || "Fine jewellery crafted for everyday distinction.",
     description: item.description || item.summary || "",

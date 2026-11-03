@@ -11,6 +11,8 @@ import {
 import type { CartLine, Product } from "@/types/commerce";
 import { getProductPrice } from "@/lib/pricing";
 import { ACCOUNT_TOKEN_KEY } from "@/lib/account";
+import { ORDER_EMAILS_KEY } from "@/lib/orders";
+import { firstImage, productImages } from "@/lib/product-image";
 
 const CART_KEY = "sonaro_cart_v1";
 const WISHLIST_KEY = "sonaro_wishlist_v1";
@@ -43,6 +45,7 @@ interface StoreContextValue {
   toggleWishlist: (productId: number) => void;
   isWishlisted: (productId: number) => boolean;
   clearCart: () => void;
+  forgetLocalData: () => void;
   /**
    * Removes only lines that are no longer sold (missing from the catalogue or
    * out of stock). Resolves to the number removed, or null if the catalogue
@@ -53,6 +56,17 @@ interface StoreContextValue {
 }
 
 const StoreContext = createContext<StoreContextValue | null>(null);
+
+/** A plain text value (the coupon is saved as text, not JSON). */
+function readText(key: string): string {
+  try {
+    const value = window.localStorage.getItem(key) ?? "";
+    // Older saves may hold a JSON string ("\"CODE\"").
+    return value.startsWith('"') ? String(JSON.parse(value)) : value;
+  } catch {
+    return "";
+  }
+}
 
 function readStorage<T>(key: string, fallback: T): T {
   try {
@@ -108,7 +122,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         quantity: clampQuantity(line.quantity, line.stock),
       })));
       setWishlist(readStorage<number[]>(WISHLIST_KEY, []));
-      setCouponCode(readStorage<string>(COUPON_KEY, ""));
+      setCouponCode(readText(COUPON_KEY));
       setHydrated(true);
 
       const customerToken = window.localStorage.getItem(ACCOUNT_TOKEN_KEY);
@@ -164,13 +178,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
           setCart((current) => current.flatMap((line) => {
             const product = catalog.get(line.productId);
-            if (!product || !product.images[0]?.path) return [];
+            // Only a product that is gone leaves the bag; one without a photo shows the placeholder.
+            if (!product) return [];
 
             return [{
               ...line,
               slug: product.slug,
               name: product.name,
-              image: product.images[0].path,
+              image: productImages(product.images)[0],
               price: product.pricing.total,
               purity: product.purity,
               stock: product.stock_quantity ?? line.stock,
@@ -248,7 +263,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
           productId: product.id,
           slug: product.slug,
           name: product.name,
-          image: product.images[0],
+          image: firstImage(product.images),
           price,
           purity: product.purity,
           quantity: clampQuantity(addQty, product.stock),
@@ -332,6 +347,22 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  /**
+   * Signing out on a shared device: forget the bag, coupon, wishlist and order emails kept in this
+   * browser, so the next person neither sees them nor gets them copied into their account. The bag
+   * saved on the account itself is kept for when that customer signs in again.
+   */
+  const forgetLocalData = useCallback(() => {
+    setCart([]);
+    setCouponCode("");
+    setWishlist([]);
+    try {
+      [CART_KEY, COUPON_KEY, WISHLIST_KEY, ORDER_EMAILS_KEY].forEach((key) => window.localStorage.removeItem(key));
+    } catch {
+      // Storage blocked: nothing was kept there either.
+    }
+  }, []);
+
   const removeUnavailableItems = useCallback(async () => {
     const catalog = await reconcileCartWithCatalog(cart.map((line) => line.productId));
     if (!catalog) return null;
@@ -373,6 +404,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       toggleWishlist,
       isWishlisted: (productId) => wishlist.includes(productId),
       clearCart,
+      forgetLocalData,
       removeUnavailableItems,
       setCouponCode,
     }),
@@ -380,6 +412,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addToCart,
       cart,
       clearCart,
+      forgetLocalData,
       couponCode,
       removeFromCart,
       removeUnavailableItems,

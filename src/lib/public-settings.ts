@@ -21,6 +21,15 @@ interface ApiPublicSettings {
     firebase?: Partial<FirebaseWebConfig> | null;
     providers?: { google?: boolean | null; facebook?: boolean | null } | null;
   } | null;
+  popup?: {
+    enabled?: boolean | null;
+    heading?: string | null;
+    text?: string | null;
+    button?: string | null;
+    fine_print?: string | null;
+    delay_seconds?: number | null;
+    has_coupon?: boolean | null;
+  } | null;
 }
 
 export interface FirebaseWebConfig {
@@ -51,9 +60,21 @@ export interface AuthSettings {
   providers: { google: boolean; facebook: boolean };
 }
 
+/** The newsletter sign-up popup (Admin → Settings → Newsletter popup). */
+export interface PopupSettings {
+  enabled: boolean;
+  heading: string;
+  text: string;
+  button: string;
+  finePrint: string;
+  delaySeconds: number;
+  hasCoupon: boolean;
+}
+
 export interface PublicSettings {
   site: SiteSettings;
   auth: AuthSettings;
+  popup: PopupSettings;
 }
 
 const REVALIDATE_SECONDS = 60;
@@ -98,6 +119,7 @@ export const getPublicSettings = cache(async (): Promise<PublicSettings> => {
   const store = api?.store ?? {};
   const analytics = api?.analytics ?? {};
   const firebase = firebaseConfig(api?.auth?.firebase);
+  const popup = api?.popup ?? {};
 
   return {
     site: {
@@ -122,6 +144,15 @@ export const getPublicSettings = cache(async (): Promise<PublicSettings> => {
         google: Boolean(firebase && api?.auth?.providers?.google),
         facebook: Boolean(firebase && api?.auth?.providers?.facebook),
       },
+    },
+    popup: {
+      enabled: popup.enabled === true,
+      heading: pick(popup.heading, "Join the Insider List"),
+      text: pick(popup.text, "Be the first to hear about new collections, festive offers and gold rate updates."),
+      button: pick(popup.button, "Subscribe"),
+      finePrint: pick(popup.fine_print, "By subscribing you agree to receive offers and updates from us by email, SMS or WhatsApp. You can unsubscribe at any time."),
+      delaySeconds: typeof popup.delay_seconds === "number" && popup.delay_seconds >= 0 ? popup.delay_seconds : 8,
+      hasCoupon: popup.has_coupon === true,
     },
   };
 });

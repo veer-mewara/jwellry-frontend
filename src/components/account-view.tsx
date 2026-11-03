@@ -8,6 +8,8 @@ import { endpoint, passwordProblem, requestJson, responseMessage } from "@/lib/a
 import { SocialLoginButtons } from "@/components/social-login-buttons";
 import { ForgotPasswordForm } from "@/components/forgot-password-form";
 import { EmailVerificationCard } from "@/components/email-verification-card";
+import { PhoneChangeCard } from "@/components/phone-change-card";
+import { useStore } from "@/components/store-provider";
 import { formatINR } from "@/lib/pricing";
 import { orderStatusLabel, saveOrderEmail } from "@/lib/orders";
 
@@ -49,8 +51,10 @@ interface AccountData {
 export function AccountView() {
   const [mode, setMode] = useState<"login" | "register" | "forgot">("login");
   const [token, setToken] = useState("");
+  const { forgetLocalData } = useStore();
   const [account, setAccount] = useState<AccountData | null>(null);
   const [notice, setNotice] = useState("");
+  const [changingPhone, setChangingPhone] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [accountLoading, setAccountLoading] = useState(false);
@@ -299,6 +303,8 @@ export function AccountView() {
       await fetch(url, { method: "POST", headers: { Authorization: `Bearer ${token}` } }).catch(() => undefined);
     }
     window.localStorage.removeItem(ACCOUNT_TOKEN_KEY);
+    // Shared devices: the next person must not see (or inherit) this customer's bag and orders.
+    forgetLocalData();
     setToken("");
     setAccount(null);
     setAccountError("");
@@ -506,6 +512,16 @@ export function AccountView() {
             color: #e65100;
             border: 1px solid #ffe0b2;
           }
+          .phoneEditLink {
+            background: none;
+            border: 0;
+            padding: 0;
+            color: #6f3f2b;
+            font-size: 13px;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            cursor: pointer;
+          }
           .verifyNowInline {
             background: #201611;
             color: #fff;
@@ -528,10 +544,16 @@ export function AccountView() {
                   <i className="ri-checkbox-circle-fill"></i> Verified
                 </span>
               )}
+            </div>
+            <div className="userMetaRow">
+              <i className="ri-smartphone-line" aria-hidden="true" style={{ color: "#666" }}></i>
+              {account.phone ? (
+                <span style={{ fontWeight: 500 }}>{account.phone}</span>
+              ) : (
+                <span style={{ color: "#666" }}>No mobile number added</span>
+              )}
               {account.phone && (
                 <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                  <span>·</span>
-                  <span style={{ fontWeight: 500 }}>{account.phone}</span>
                   {account.is_phone_verified ? (
                     <span className="phoneBadge verified" title="Mobile number is verified">
                       <i className="ri-checkbox-circle-fill"></i> Verified
@@ -553,6 +575,11 @@ export function AccountView() {
                   )}
                 </div>
               )}
+              {!changingPhone && (
+                <button type="button" className="phoneEditLink" onClick={() => setChangingPhone(true)}>
+                  {account.phone ? "Change" : "Add mobile number"}
+                </button>
+              )}
             </div>
           </div>
           <button className="button buttonOutline" onClick={() => void logout()}>
@@ -561,6 +588,19 @@ export function AccountView() {
         </div>
 
         {notice && <p className="integrationNotice" role="status">{notice}</p>}
+
+        {changingPhone && (
+          <PhoneChangeCard
+            token={token}
+            currentPhone={account.phone}
+            onCancel={() => setChangingPhone(false)}
+            onSaved={(update) => {
+              setAccount({ ...account, ...update });
+              setChangingPhone(false);
+              setNotice("Your mobile number has been updated.");
+            }}
+          />
+        )}
 
         {account.is_email_verified === false && (
           <EmailVerificationCard

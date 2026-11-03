@@ -11,6 +11,7 @@ import { ACCOUNT_TOKEN_KEY, CHECKOUT_SIGN_IN_PATH } from "@/lib/account";
 import { saveOrderEmail } from "@/lib/orders";
 import { useCouponPreview } from "@/lib/coupon-preview";
 import { CouponTotals, couponTotal } from "@/components/coupon-totals";
+import { loadRazorpay } from "@/lib/razorpay";
 
 interface OrderResult {
   data: {
@@ -67,28 +68,6 @@ declare global {
   }
 }
 
-function loadRazorpay(): Promise<boolean> {
-  if (window.Razorpay) return Promise.resolve(true);
-
-  return new Promise((resolve) => {
-    const existing = document.querySelector<HTMLScriptElement>(
-      'script[src="https://checkout.razorpay.com/v1/checkout.js"]',
-    );
-    if (existing) {
-      existing.addEventListener("load", () => resolve(true), { once: true });
-      existing.addEventListener("error", () => resolve(false), { once: true });
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://checkout.razorpay.com/v1/checkout.js";
-    script.async = true;
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-}
-
 function apiMessage(result: Partial<OrderResult>) {
   const validationMessage = result.errors
     ? Object.values(result.errors).flat()[0]
@@ -122,6 +101,9 @@ export function CheckoutView() {
   // Orders need an account: null until the stored token has been checked.
   const [customerEmail, setCustomerEmail] = useState<string | null>(null);
   const [prefill, setPrefill] = useState<Record<string, string | null | undefined> | null>(null);
+  // An order already created for this exact bag and form: paying again reopens it instead of
+  // creating (and reserving stock for) another one.
+  const pendingPaymentRef = useRef<{ signature: string; order: OrderResult; email: string; phone: string } | null>(null);
 
   function signInAgain() {
     window.localStorage.removeItem(ACCOUNT_TOKEN_KEY);
@@ -210,24 +192,56 @@ export function CheckoutView() {
     if (code !== couponCode) setCouponCode(code);
   }
 
-  async function verifyPayment(
+  /**
+   * Razorpay has taken the money: confirm it, then always open the order page. If confirming fails
+   * (network, server), the payment webhook settles the order, and the pay button never comes back,
+   * so the same bag cannot be paid for twice.
+   */
+  async function paymentReceived(
     apiBase: string,
     order: OrderResult,
     email: string,
     payment: RazorpayResponse,
   ) {
-    const response = await fetch(`${apiBase}/api/payments/razorpay/verify`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify({
-        order_uuid: order.data.uuid,
-        ...payment,
-      }),
-    });
-    const result = (await response.json()) as Partial<OrderResult>;
-    if (!response.ok) throw new Error(apiMessage(result));
-
+    pendingPaymentRef.current = null;
+    setNotice("Payment received. Confirming your order…");
+    try {
+      await fetch(`${apiBase}/api/payments/razorpay/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ order_uuid: order.data.uuid, ...payment }),
+      });
+    } catch {
+      // The order page shows the status once Razorpay's webhook has confirmed it.
+    }
     finishOrder(order.data.uuid, email);
+  }
+
+  async function openPayment(apiBase: string, order: OrderResult, email: string, phone: string) {
+    if (!(await loadRazorpay()) || !window.Razorpay) {
+      throw new Error("Secure payment window could not load. Please check your connection and try again.");
+    }
+
+    const checkout = new window.Razorpay({
+      key: order.payment.key_id,
+      amount: order.payment.amount,
+      currency: order.payment.currency || "INR",
+      name: storeName,
+      description: `Order ${order.data.order_number}`,
+      order_id: order.payment.razorpay_order_id,
+      prefill: { email, contact: phone },
+      theme: { color: "#201611" },
+      handler: (payment: RazorpayResponse) => {
+        void paymentReceived(apiBase, order, email, payment);
+      },
+      modal: {
+        ondismiss: () => {
+          setNotice("Payment window closed. Nothing was charged. Press the button again to pay for the same order.");
+          setLoading(false);
+        },
+      },
+    });
+    checkout.open();
   }
 
   function finishOrder(uuid: string, email: string) {
@@ -251,7 +265,6 @@ export function CheckoutView() {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setNotice("");
-    setPendingOrderUuid("");
     setLoading(true);
 
     const apiBase = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "");
@@ -281,8 +294,17 @@ export function CheckoutView() {
         quantity: line.quantity,
       })),
     };
+    const signature = JSON.stringify(payload);
 
     try {
+      const pending = pendingPaymentRef.current;
+      if (paymentMethod === "razorpay" && pending?.signature === signature) {
+        await openPayment(apiBase, pending.order, pending.email, pending.phone);
+        return;
+      }
+      pendingPaymentRef.current = null;
+      setPendingOrderUuid("");
+
       const customerToken = window.localStorage.getItem(ACCOUNT_TOKEN_KEY);
       const response = await fetch(`${apiBase}/api/checkout/orders`, {
         method: "POST",
@@ -316,34 +338,9 @@ export function CheckoutView() {
       // Remember the email now so the order stays reachable if payment verification fails.
       saveOrderEmail(result.data.uuid, orderEmail);
       setPendingOrderUuid(result.data.uuid);
+      pendingPaymentRef.current = { signature, order: result, email: orderEmail, phone: payload.phone };
 
-      if (!(await loadRazorpay()) || !window.Razorpay) {
-        throw new Error("Secure payment window could not load. Please check your connection.");
-      }
-
-      const checkout = new window.Razorpay({
-        key: result.payment.key_id,
-        amount: result.payment.amount,
-        currency: result.payment.currency || "INR",
-        name: storeName,
-        description: `Order ${result.data.order_number}`,
-        order_id: result.payment.razorpay_order_id,
-        prefill: { email: orderEmail, contact: payload.phone },
-        theme: { color: "#201611" },
-        handler: (payment: RazorpayResponse) => {
-          void verifyPayment(apiBase, result, orderEmail, payment).catch((error: unknown) => {
-            setNotice(error instanceof Error ? error.message : "Payment verification failed.");
-            setLoading(false);
-          });
-        },
-        modal: {
-          ondismiss: () => {
-            setNotice("Payment window closed. Your card or UPI account was not charged here.");
-            setLoading(false);
-          },
-        },
-      });
-      checkout.open();
+      await openPayment(apiBase, result, orderEmail, payload.phone);
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "We could not place the order.");
       setLoading(false);
