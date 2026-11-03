@@ -35,6 +35,12 @@ type State =
   | { kind: "error"; message: string }
   | { kind: "ready"; order: OrderData };
 
+/** Emailed links carry the email after # so it never reaches a server; junk is ignored. */
+function emailFromHash(): string {
+  const value = new URLSearchParams(window.location.hash.slice(1)).get("email")?.trim() ?? "";
+  return /^[^\s@�]+@[^\s@�]+\.[^\s@�]+$/.test(value) ? value : "";
+}
+
 function formatDate(value: string) {
   return new Date(value).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
@@ -57,10 +63,11 @@ export function OrderView({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const known = queryEmail || getSavedOrderEmail(uuid);
-      if (queryEmail) {
+      const linkEmail = emailFromHash() || queryEmail;
+      const known = linkEmail || getSavedOrderEmail(uuid);
+      if (linkEmail) {
         // Keep the email out of the address bar, history and referrers.
-        saveOrderEmail(uuid, queryEmail);
+        saveOrderEmail(uuid, linkEmail);
         const params = new URLSearchParams(window.location.search);
         params.delete("email");
         const rest = params.toString();
@@ -84,8 +91,9 @@ export function OrderView({
     }
 
     const controller = new AbortController();
-    void fetch(`${base}/api/orders/${encodeURIComponent(uuid)}?email=${encodeURIComponent(email)}`, {
-      headers: { Accept: "application/json" },
+    void fetch(`${base}/api/orders/${encodeURIComponent(uuid)}`, {
+      // In a header, not the URL, so it stays out of server logs.
+      headers: { Accept: "application/json", "X-Order-Email": email },
       signal: controller.signal,
     })
       .then(async (response) => {
